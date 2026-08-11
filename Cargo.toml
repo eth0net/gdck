@@ -28,6 +28,11 @@ similar = "3.1"
 toml = "1.1"
 yaml_serde = "0.10"
 
+# Test-only. Cargo hands a test the path to the binary it built; what this adds
+# is the failure message — the exit code, stdout and stderr of the run that went
+# wrong, rather than `assertion failed: output.status.success()`.
+assert_cmd = "2.0"
+
 [workspace.lints.rust]
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"

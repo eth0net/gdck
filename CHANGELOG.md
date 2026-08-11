@@ -78,6 +78,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `gdck-cli`: `gdck format -` wrote the literal string `-` to standard output
+  instead of the formatted file, so `gdck format - < in.gd > out.gd` destroyed
+  the file. Reading from `-` is now a filter with or without `--fix`, which is
+  what the README always said it was: there is no file to write back to, so
+  the formatted text is the output.
+- `gdck-cli`: `gdck parse` wrote its summary to standard output while every
+  other subcommand wrote it to standard error, so `gdck parse --tree` mixed a
+  sentence of prose into the tree.
 - `gdck-cli`: `--diff` printed the whole span between the first and last change
   as removed and re-added, so two one-line changes at opposite ends of a file
   printed the file twice. Diffs now come from `similar` and have hunks.
@@ -94,6 +102,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gdck format` writes summaries to standard error, so standard output carries
   only content: the formatted file when reading from `-`, the diff under
   `--diff`, and otherwise the list of paths that would change.
+
+### Internal
+
+- End-to-end tests that run the binary, covering what only a real process can
+  answer: that nothing reaches the disk without `--fix`, which stream each kind
+  of output goes to, and which exit code comes back. Both of the `gdck-cli`
+  fixes above were found by writing them.
 
 ## [0.1.0] - 2026-08-11
 
