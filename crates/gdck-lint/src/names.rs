@@ -2,9 +2,13 @@
 //!
 //! [`gdck_config::naming`] states each convention as a regular expression,
 //! which is the form a user would write to override one. These functions match
-//! those exact patterns directly. Recognising `[a-z][a-z0-9]*(_[a-z0-9]+)*`
-//! does not need a regex engine, and not having one keeps a dependency out of
-//! the tool that runs on every save.
+//! those exact patterns directly, as predicates.
+//!
+//! Written rather than compiled because the conventions are fixed — `gdck`
+//! checks the guide's, and offers no way to configure a different one — and a
+//! dozen lines of `is_ascii_uppercase` reads better at that size than a
+//! pattern does. If naming ever becomes configurable, this is the module that
+//! gets replaced by a real engine rather than extended.
 
 /// `([A-Z][a-z0-9]*)+` — a name made of capitalised words, e.g. `YAMLParser`.
 ///

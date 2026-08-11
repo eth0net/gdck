@@ -3,10 +3,11 @@
 A fast GDScript formatter and linter, faithful to the [official GDScript style
 guide][styleguide].
 
-> [!WARNING]
-> **Work in progress.** The parser, formatter and linter are done and tested,
-> and every subcommand works. Configuration files are not read yet, so every
-> run uses style-guide defaults. See [Status](#status).
+> [!NOTE]
+> **Complete but young.** The parser, formatter and linter are done and tested,
+> every subcommand works, and configuration is read. It has not yet been used
+> in anger on anything but `gdtoolkit`'s corpus, so run it alongside your
+> existing setup before you trust it with `--fix`. See [Status](#status).
 
 `gdck` is a ground-up reimplementation of [`godot-gdscript-toolkit`][gdtoolkit]
 in Rust. It is designed to install alongside the original rather than replace it
@@ -74,6 +75,8 @@ gdck lint --fix src/      # apply the fixable ones
 gdck parse src/           # report syntax errors
 gdck parse --tree a.gd    # dump the syntax tree
 gdck parse --tokens a.gd  # dump the token stream
+
+gdck config               # what settings this run would use
 ```
 
 `check` and `fix` are the everything-at-once verbs; `format` and `lint` are the
@@ -88,6 +91,26 @@ Exit codes: `0` clean, `1` problems found, `2` the run could not complete.
 
 Every rule is listed in [docs/RULES.md](docs/RULES.md), along with how to turn
 one off for a line, a region or the project.
+
+### Configuration
+
+None is needed — every default is the style guide's. To depart from it, write a
+`gdck.toml`:
+
+```toml
+[format]
+line-length = 100
+
+[lint]
+max-returns = 6
+disable = ["max-public-methods"]
+```
+
+`gdck` searches upwards from the paths you gave it. With no `gdck.toml` it falls
+back to `gdtoolkit`'s own `gdformatrc` and `gdlintrc`, so a project already set
+up for `gdformat` and `gdlint` keeps its settings without writing anything new.
+`gdck config` prints what a run would actually use, and
+[docs/CONFIG.md](docs/CONFIG.md) documents every setting.
 
 ### Reading from standard input
 
@@ -204,7 +227,7 @@ it merely failed to understand.
 |---|---|
 | `gdck-syntax` — lexer | Done. Indentation, all literal forms, multi-line lambdas |
 | `gdck-syntax` — parser | Done. Full declaration and expression grammar, error recovery |
-| `gdck-config` | Types and file discovery done; reading `gdck.toml` not wired up |
+| `gdck-config` | Done. `gdck.toml`, plus `gdformatrc` and `gdlintrc` for compatibility |
 | `gdck-format` | Done. Wadler pretty printer with safety checks |
 | `gdck-lint` | Done. 33 rules, 10 of them fixable. See [docs/RULES.md](docs/RULES.md) |
 | Every subcommand | Works |
@@ -228,7 +251,13 @@ not already have. `--fix-order` only ever permutes a file's bytes.
 
 ### Known gaps
 
-- Configuration files are not read yet; every run uses style-guide defaults.
+- One configuration governs a whole run, found from the directory the given
+  paths have in common. A repository holding several Godot projects with
+  different settings needs one invocation per project.
+- Naming conventions are not configurable. `gdck` checks the style guide's
+  conventions directly rather than with a regular-expression engine, so a
+  `gdlintrc` that customised one is reported as not applied rather than
+  honoured. See [docs/CONFIG.md](docs/CONFIG.md#gdtoolkit-compatibility).
 - `code-order` cannot tell an overridden virtual method from a custom one, since
   that needs the whole inheritance chain. It orders the callbacks the guide names
   and leaves the rest as one group, rather than guessing. See

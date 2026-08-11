@@ -7,12 +7,12 @@
 
 mod files;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-use gdck_config::Config;
+use gdck_config::{Config, Loaded};
 use gdck_syntax::LineIndex;
 
 /// Exit code meaning the run found problems.
@@ -46,20 +46,29 @@ enum Command {
     Lint(LintArgs),
     /// Parse files and report syntax errors
     Parse(ParseArgs),
+    /// Print the settings a run would use, as a gdck.toml
+    Config(CommonArgs),
 }
 
-/// Paths shared by every subcommand.
+/// The paths to work on, and where the settings come from.
 #[derive(Debug, Args)]
-struct PathArgs {
-    /// Files or directories to process. Use `-` to read standard input
+struct CommonArgs {
+    /// Files or directories to process, and where the search for settings
+    /// starts. Use `-` to read standard input
     #[arg(default_value = ".")]
     paths: Vec<PathBuf>,
+    /// Read settings from this file instead of searching for one
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
+    /// Ignore every configuration file and use the style guide's defaults
+    #[arg(long, conflicts_with = "config")]
+    no_config: bool,
 }
 
 #[derive(Debug, Args)]
 struct CheckArgs {
     #[command(flatten)]
-    paths: PathArgs,
+    common: CommonArgs,
     /// Show a unified diff of the changes that would be made
     #[arg(short, long)]
     diff: bool,
@@ -68,7 +77,7 @@ struct CheckArgs {
 #[derive(Debug, Args)]
 struct FixArgs {
     #[command(flatten)]
-    paths: PathArgs,
+    common: CommonArgs,
     /// Also reorder declarations to the style guide's order
     ///
     /// Only applies when every required move in a file is provably safe; a
@@ -86,7 +95,7 @@ struct FixArgs {
 #[derive(Debug, Args)]
 struct FormatArgs {
     #[command(flatten)]
-    paths: PathArgs,
+    common: CommonArgs,
     /// Write the formatted result back to disk
     #[arg(long)]
     fix: bool,
@@ -107,7 +116,7 @@ struct FormatArgs {
 #[derive(Debug, Args)]
 struct LintArgs {
     #[command(flatten)]
-    paths: PathArgs,
+    common: CommonArgs,
     /// Apply the fixes for rules that have one
     #[arg(long)]
     fix: bool,
@@ -119,7 +128,7 @@ struct LintArgs {
 #[derive(Debug, Args)]
 struct ParseArgs {
     #[command(flatten)]
-    paths: PathArgs,
+    common: CommonArgs,
     /// Print the concrete syntax tree
     #[arg(short, long)]
     tree: bool,
@@ -140,17 +149,136 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: &Cli) -> Result<ExitCode> {
-    // Reading configuration from disk is not wired up yet, so every run uses
-    // the style-guide defaults.
-    let config = Config::default();
+    let common = match &cli.command {
+        Command::Parse(args) => &args.common,
+        Command::Check(args) => &args.common,
+        Command::Fix(args) => &args.common,
+        Command::Format(args) => &args.common,
+        Command::Lint(args) => &args.common,
+        Command::Config(args) => args,
+    };
+    let loaded = settings(common)?;
 
-    match &cli.command {
-        Command::Parse(args) => run_parse(args, &config),
-        Command::Check(args) => run_check(args, &config),
-        Command::Fix(args) => run_fix(args, &config),
-        Command::Format(args) => run_format(args, &config),
-        Command::Lint(args) => run_lint(args, &config),
+    if let Command::Config(_) = &cli.command {
+        return Ok(run_config(&loaded));
     }
+
+    // Anything a configuration file asked for that gdck cannot do is said out
+    // loud, once, before the run it would otherwise silently affect.
+    for note in &loaded.notes {
+        eprintln!("gdck: {note}");
+    }
+    report_unknown_rules(&loaded);
+
+    let config = &loaded.config;
+    match &cli.command {
+        Command::Parse(args) => run_parse(args, config),
+        Command::Check(args) => run_check(args, config),
+        Command::Fix(args) => run_fix(args, config),
+        Command::Format(args) => run_format(args, config),
+        Command::Lint(args) => run_lint(args, config),
+        Command::Config(_) => unreachable!("handled above"),
+    }
+}
+
+/// The settings for this run.
+///
+/// A configuration file that cannot be read is fatal. Falling back to the
+/// defaults would mean formatting a project by rules it explicitly rejected,
+/// and doing so without saying anything.
+fn settings(common: &CommonArgs) -> Result<Loaded> {
+    if common.no_config {
+        return Ok(Loaded::default());
+    }
+    match &common.config {
+        Some(path) => Ok(gdck_config::load(path)?),
+        None => Ok(gdck_config::resolve(&base_dir(&common.paths))?),
+    }
+}
+
+/// Where the search for a configuration file starts.
+///
+/// The directory the given paths have in common, so that `gdck check ../game`
+/// picks up `../game/gdck.toml` rather than whatever sits above the shell's
+/// working directory. One configuration governs the whole run: a monorepo with
+/// a `gdck.toml` per project needs one invocation per project.
+fn base_dir(paths: &[PathBuf]) -> PathBuf {
+    let mut common: Option<PathBuf> = None;
+    for path in paths {
+        // Standard input is not anywhere, so it says nothing about where to
+        // look. A run that is only `-` falls through to the working directory.
+        if path.as_os_str() == files::STDIN {
+            continue;
+        }
+        // Relative paths have to be made absolute first, or the walk upwards
+        // stops at the front of the path rather than at the filesystem root.
+        let absolute = std::path::absolute(path).unwrap_or_else(|_| path.clone());
+        let dir = if absolute.is_file() {
+            absolute
+                .parent()
+                .map_or(absolute.clone(), Path::to_path_buf)
+        } else {
+            absolute
+        };
+        common = Some(match common {
+            None => dir,
+            Some(current) => common_prefix(&current, &dir),
+        });
+    }
+    common
+        .or_else(|| std::env::current_dir().ok())
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn common_prefix(left: &Path, right: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for (left, right) in left.components().zip(right.components()) {
+        if left != right {
+            break;
+        }
+        out.push(left);
+    }
+    out
+}
+
+/// Warn about a `disable` entry that no rule answers to.
+///
+/// Not an error: a project may share one configuration between `gdck` and
+/// `gdlint`, or across versions, and a rule that does not exist here is
+/// already switched off. But a typo silently leaving a rule on is worth a word.
+fn report_unknown_rules(loaded: &Loaded) {
+    let source = loaded.files.last().map_or_else(
+        || "configuration".to_string(),
+        |path| path.display().to_string(),
+    );
+    for name in &loaded.config.lint.disabled {
+        if gdck_lint::rule(name).is_none() {
+            eprintln!("gdck: {source}: no rule is named `{name}`; it is still on");
+        }
+    }
+}
+
+/// Print the settings this run would use, as a `gdck.toml`.
+///
+/// Which doubles as a way to write one: `gdck config > gdck.toml` produces a
+/// file that says exactly what the defaults already do.
+fn run_config(loaded: &Loaded) -> ExitCode {
+    print!("{}", loaded.config.to_toml());
+    if loaded.files.is_empty() {
+        eprintln!("No configuration file found; these are the style guide's defaults.");
+    } else {
+        let files: Vec<String> = loaded
+            .files
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect();
+        eprintln!("Read {}.", files.join(", "));
+    }
+    for note in &loaded.notes {
+        eprintln!("gdck: {note}");
+    }
+    report_unknown_rules(loaded);
+    ExitCode::SUCCESS
 }
 
 fn run_format(args: &FormatArgs, config: &Config) -> Result<ExitCode> {
@@ -162,7 +290,7 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<ExitCode> {
         format_config.safety_checks = false;
     }
 
-    let paths = files::collect(&args.paths.paths, config)?;
+    let paths = files::collect(&args.common.paths, config)?;
     if paths.is_empty() {
         eprintln!("No .gd files found.");
         return Ok(ExitCode::SUCCESS);
@@ -253,9 +381,9 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<ExitCode> {
 
 /// A minimal unified diff, enough to see what would change.
 ///
-/// Written by hand rather than pulled in as a dependency: the output is only
-/// ever read by a person deciding whether to run `--fix`, so the cost of a
-/// crate that computes a minimal edit script is not worth paying.
+/// The only reader is a person deciding whether to run `--fix`, and the only
+/// question they have is what would change. That does not need a minimal edit
+/// script, so this trims the common prefix and suffix and prints the rest.
 fn print_diff(name: &str, before: &str, after: &str) {
     println!("--- {name}");
     println!("+++ {name} (formatted)");
@@ -289,7 +417,7 @@ fn print_diff(name: &str, before: &str, after: &str) {
 // -- lint -------------------------------------------------------------------
 
 fn run_lint(args: &LintArgs, config: &Config) -> Result<ExitCode> {
-    let paths = files::collect(&args.paths.paths, config)?;
+    let paths = files::collect(&args.common.paths, config)?;
     if paths.is_empty() {
         eprintln!("No .gd files found.");
         return Ok(ExitCode::SUCCESS);
@@ -402,7 +530,7 @@ fn file_name(path: &std::path::Path) -> Option<&str> {
 // -- check and fix ----------------------------------------------------------
 
 fn run_check(args: &CheckArgs, config: &Config) -> Result<ExitCode> {
-    let paths = files::collect(&args.paths.paths, config)?;
+    let paths = files::collect(&args.common.paths, config)?;
     if paths.is_empty() {
         eprintln!("No .gd files found.");
         return Ok(ExitCode::SUCCESS);
@@ -471,7 +599,7 @@ fn run_fix(args: &FixArgs, config: &Config) -> Result<ExitCode> {
     if args.fast {
         format_config.safety_checks = false;
     }
-    let paths = files::collect(&args.paths.paths, config)?;
+    let paths = files::collect(&args.common.paths, config)?;
     if paths.is_empty() {
         eprintln!("No .gd files found.");
         return Ok(ExitCode::SUCCESS);
@@ -557,7 +685,7 @@ fn run_fix(args: &FixArgs, config: &Config) -> Result<ExitCode> {
 }
 
 fn run_parse(args: &ParseArgs, config: &Config) -> Result<ExitCode> {
-    let paths = files::collect(&args.paths.paths, config)?;
+    let paths = files::collect(&args.common.paths, config)?;
     if paths.is_empty() {
         println!("No .gd files found.");
         return Ok(ExitCode::SUCCESS);
@@ -678,7 +806,7 @@ mod tests {
     fn paths_default_to_the_working_directory() {
         let cli = Cli::try_parse_from(["gdck", "check"]).expect("should parse");
         match cli.command {
-            Command::Check(args) => assert_eq!(args.paths.paths, vec![PathBuf::from(".")]),
+            Command::Check(args) => assert_eq!(args.common.paths, vec![PathBuf::from(".")]),
             other => panic!("expected check, got {other:?}"),
         }
     }
@@ -690,6 +818,44 @@ mod tests {
             Command::Fix(args) => assert!(!args.fix_order),
             other => panic!("expected fix, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_config_file_can_be_named_or_refused() {
+        let cli = Cli::try_parse_from(["gdck", "check", "--config", "ci.toml", "src/"])
+            .expect("should parse");
+        match cli.command {
+            Command::Check(args) => {
+                assert_eq!(args.common.config, Some(PathBuf::from("ci.toml")));
+                assert!(!args.common.no_config);
+            }
+            other => panic!("expected check, got {other:?}"),
+        }
+
+        let cli = Cli::try_parse_from(["gdck", "lint", "--no-config"]).expect("should parse");
+        match cli.command {
+            Command::Lint(args) => assert!(args.common.no_config),
+            other => panic!("expected lint, got {other:?}"),
+        }
+
+        // Naming a file and refusing to read one cannot both be meant.
+        Cli::try_parse_from(["gdck", "lint", "--no-config", "--config", "ci.toml"])
+            .expect_err("should conflict");
+    }
+
+    #[test]
+    fn the_config_search_starts_where_the_paths_agree() {
+        let base = base_dir(&[
+            PathBuf::from("game/scenes/player.gd"),
+            PathBuf::from("game/scripts"),
+        ]);
+        let expected = std::path::absolute("game").expect("should be absolute");
+        assert_eq!(base, expected);
+
+        // Standard input is not anywhere, so it says nothing about where to
+        // look and the working directory is what is left.
+        let cwd = std::env::current_dir().expect("should have a working directory");
+        assert_eq!(base_dir(&[PathBuf::from("-")]), cwd);
     }
 
     #[test]

@@ -25,8 +25,15 @@ comment and as a comment written above the line it excuses. `disable=` runs to
 the matching `enable=` or to the end of the file. Both take a comma-separated
 list.
 
-Project-wide, list rules under `disable` in the configuration file. (Reading
-that file is not wired up yet — see the [README](../README.md#status).)
+Project-wide, list them under `disable` in `gdck.toml`:
+
+```toml
+[lint]
+disable = ["max-returns", "line-too-long"]
+```
+
+The thresholds the design rules report against are configurable there too. See
+[CONFIG.md](CONFIG.md).
 
 ## Naming conventions
 
