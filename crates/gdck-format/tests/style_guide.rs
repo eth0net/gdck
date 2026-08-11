@@ -256,10 +256,10 @@ fn no_sample_is_left_unclassified() {
         let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
             continue;
         };
-        if let Some(stem) = name.strip_suffix(".gd")
-            && !name.ends_with(".expected.gd")
-        {
-            present.insert(stem.to_string());
+        if !name.ends_with(".expected.gd") {
+            if let Some(stem) = name.strip_suffix(".gd") {
+                present.insert(stem.to_string());
+            }
         }
     }
 

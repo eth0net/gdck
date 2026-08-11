@@ -215,12 +215,13 @@ fn walk_class_decl(node: SyntaxNode<'_>, source: &str, steps: &mut Vec<Step>) {
         .unwrap_or_default();
 
     let mut extends = node.child_node_of(SyntaxKind::ExtendsDecl);
-    if extends.is_none()
-        && let Some(index) = members
+    if extends.is_none() {
+        let body_level = members
             .iter()
-            .position(|member| member.kind() == SyntaxKind::ExtendsDecl)
-    {
-        extends = Some(members.remove(index));
+            .position(|member| member.kind() == SyntaxKind::ExtendsDecl);
+        if let Some(index) = body_level {
+            extends = Some(members.remove(index));
+        }
     }
 
     for token in node.child_tokens() {
