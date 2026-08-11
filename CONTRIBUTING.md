@@ -24,6 +24,56 @@ cargo test
 
 CI runs the same three on Linux, macOS and Windows.
 
+### Or let the hooks run them
+
+[`prek`][prek] runs the same checks from `prek.toml`, split so that committing
+stays quick and the compiling happens on push:
+
+```sh
+brew install prek     # or: cargo install --git https://github.com/j178/prek
+prek install          # installs both the pre-commit and pre-push hooks
+```
+
+Committing runs the file-hygiene checks, `cargo fmt` and `cargo clippy`.
+Pushing adds `cargo test`, the doctests and the MSRV check — which is
+everything CI runs except the corpus jobs, since those need
+`godot-gdscript-toolkit` checked out. `prek run --all-files` runs the lot on
+demand, and `git commit --no-verify` skips them when you know better.
+
+The hygiene hooks are prek's own builtins rather than hooks from a remote
+repository, so there is nothing to clone and no Python to install: a fresh
+checkout can run them offline.
+
+The fixture directories are excluded from the whitespace hooks. Their value is
+being byte-for-byte what `gdtoolkit` and the style guide produced, so nothing
+may tidy them — least of all a whitespace fixer, when one of the rules under
+test is `trailing-whitespace`.
+
+[prek]: https://prek.j178.dev
+
+## Adding a dependency
+
+The deliverable is a single self-contained binary, which is a statement about
+what ships rather than about what builds — build-time crates are chosen on
+merit, and a proven one is preferred to an imitation of it every time. See the
+Dependencies section of [docs/DESIGN.md](docs/DESIGN.md).
+
+What a new dependency does have to clear is `deny.toml`:
+
+```sh
+cargo install cargo-deny
+cargo deny check
+```
+
+Four checks: security advisories, licences, duplicate versions, and where each
+crate came from. CI runs the same thing. A dependency whose licence is not
+already in the allow list is a licensing decision rather than a build failure —
+the binary is distributed under `MIT OR Apache-2.0`, so anything linked into it
+has to be compatible with both.
+
+It is not in the hook set, because it needs the network to fetch the advisory
+database and pushing offline should still work.
+
 ## Testing against a real corpus
 
 The parser is validated against an external directory of `.gd` files:
