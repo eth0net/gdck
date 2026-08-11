@@ -1,0 +1,5 @@
+# The GDScript style guide mandates line feeds, and the formatter emits them,
+# so a fixture checked out with CRLF would fail the moment it is compared with
+# formatter output. Pinning the whole working tree to LF keeps Windows builds
+# comparing like with like.
+* text=auto eol=lf

@@ -191,6 +191,8 @@ knowingly does not reproduce and why.
 ### Known gaps
 
 - Configuration files are not read yet; every run uses style-guide defaults.
+- CRLF and CR line endings are rewritten to LF, which the style guide mandates.
+  There is no option to keep them.
 - The formatter does not fill lines. Where the style guide hand-wraps a call or
   a boolean chain several items per line, `gdck` puts one per line. Both of the
   guide's samples of that are hand-formatted rather than derived from a column

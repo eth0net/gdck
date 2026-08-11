@@ -303,6 +303,12 @@ mod tests {
     }
 
     #[test]
+    fn carriage_returns_are_normalised_away() {
+        // "Use line feed (LF) characters to break lines, not CRLF or CR."
+        check("var x = 1\r\nvar y = 2\r\n", "var x = 1\nvar y = 2\n");
+    }
+
+    #[test]
     fn a_file_ends_with_exactly_one_newline() {
         check("var x = 1", "var x = 1\n");
         check("var x = 1\n\n\n", "var x = 1\n");
