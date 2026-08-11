@@ -29,13 +29,24 @@ all, and it is a statement about what ships, not about what builds.
 
 Build-time crates are chosen on merit, and a proven one is preferred to an
 imitation of it every time. `gdck.toml` is read by `toml`, which is what Cargo
-parses manifests with; the alternative was several hundred lines of parser to
-maintain, and a subtly wrong TOML reader is worse than no TOML at all.
+parses manifests with. `gdlintrc` and `gdformatrc` are read by `yaml_serde`,
+the YAML Organization's continuation of the deprecated `serde_yaml`. Diffs come
+from `similar`.
 
-Something is written here only when there is a reason beyond the dependency
-itself — no crate does the job, or the job is small and specific enough that a
-general one would have to be bent to fit. Each of those is argued where it
-lives rather than assumed from a blanket rule.
+Two of those replaced code written here, and both replacements found a defect
+the hand-written version had. The diff trimmed the common prefix and suffix and
+printed everything between, so two one-line changes at opposite ends of a file
+printed the whole file twice. The YAML reader required block sequences to be
+indented, which PyYAML does not do, so the canonical output of
+`gdlint --dump-default-config` produced fourteen spurious problems — under a
+test that claimed to prove the opposite, because the fixture had been written by
+hand rather than by PyYAML.
+
+That is the general shape of the argument. A hand-written reader's risk is not
+failing to parse, it is accepting something and *misreading* it, and the files
+here belong to other tools and other people. Something is written here only when
+no crate does the job — which is why the case predicates in `gdck-lint::names`
+stay, the conventions being fixed and unconfigurable.
 
 ## The syntax tree
 
@@ -388,19 +399,22 @@ reported at the line it is on rather than at the top of the file. Validation
 above the deserialiser covers what a type cannot say: ranges, and settings that
 only mean something alongside another.
 
-The `gdtoolkit` files are YAML, where there is no equivalent crate to reach for:
-`serde_yaml` is deprecated, and its successors are young. They also want reading
-in a shape `serde` is not built for. A `gdlintrc` legitimately holds dozens of
-settings `gdck` has no equivalent for, and the right response to each is to skip
-that one with a note rather than to fail the file — so a `Deserialize` struct
-would have to become a map of untyped values and be matched over by hand anyway.
-What `compat.rs` reads is the handful of shapes those files actually take:
-`key: value`, block and flow sequences, and the `!!set` mapping `yaml.dump`
-writes for `excluded_directories`.
+The `gdtoolkit` files are read by `yaml_serde` into a `Mapping` rather than into
+a struct, because `serde`'s all-or-nothing shape is wrong for them: a `gdlintrc`
+legitimately holds dozens of settings `gdck` has no equivalent for, and the
+right response to each is to skip that one with a note rather than to fail the
+file. Iterating an untyped mapping gives that, and still gets a real YAML parser
+underneath — `!!set`, block sequences at either indentation, quoting rules and
+all.
 
-Nothing in a `gdtoolkit` file is fatal, which is the opposite of the rule for
-`gdck.toml`. What it must not do is *silently* drop something, so anything
-ignored comes back as a note the CLI prints before the run.
+The one thing it does not give is a line number for a key that parsed, since
+locations live only on errors. `line_of` recovers it by finding the line the key
+opens, which is unambiguous because top-level keys are unique in a mapping.
+
+A *setting* in a `gdtoolkit` file is never fatal, which is the opposite of the
+rule for `gdck.toml`. The *file* is: if the document cannot be parsed then none
+of its settings apply, which is the outcome worse than not running — a project
+formatted by rules it had written down and rejected, with nothing said.
 
 ### Strict about its own keys
 

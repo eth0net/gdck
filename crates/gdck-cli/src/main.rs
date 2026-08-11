@@ -14,6 +14,7 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use gdck_config::{Config, Loaded};
 use gdck_syntax::LineIndex;
+use similar::TextDiff;
 
 /// Exit code meaning the run found problems.
 const EXIT_PROBLEMS: u8 = 1;
@@ -379,40 +380,26 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<ExitCode> {
     Ok(ExitCode::from(EXIT_PROBLEMS))
 }
 
-/// A minimal unified diff, enough to see what would change.
+/// A unified diff of what `--fix` would change.
 ///
-/// The only reader is a person deciding whether to run `--fix`, and the only
-/// question they have is what would change. That does not need a minimal edit
-/// script, so this trims the common prefix and suffix and prints the rest.
+/// Hunks matter here rather than being a nicety. Two one-line changes at
+/// opposite ends of a file are two hunks; without them the whole span between
+/// gets printed as removed and re-added, which on a real script means printing
+/// the file twice.
 fn print_diff(name: &str, before: &str, after: &str) {
-    println!("--- {name}");
-    println!("+++ {name} (formatted)");
-
-    let before: Vec<&str> = before.lines().collect();
-    let after: Vec<&str> = after.lines().collect();
-
-    // Trim the common prefix and suffix so the report is about what changed.
-    let prefix = before
-        .iter()
-        .zip(&after)
-        .take_while(|(a, b)| a == b)
-        .count();
-    let remaining = before.len().min(after.len()) - prefix;
-    let suffix = before
-        .iter()
-        .rev()
-        .zip(after.iter().rev())
-        .take(remaining)
-        .take_while(|(a, b)| a == b)
-        .count();
-
-    for line in &before[prefix..before.len() - suffix] {
-        println!("-{line}");
-    }
-    for line in &after[prefix..after.len() - suffix] {
-        println!("+{line}");
-    }
+    print!("{}", diff(name, before, after));
 }
+
+fn diff(name: &str, before: &str, after: &str) -> String {
+    TextDiff::from_lines(before, after)
+        .unified_diff()
+        .context_radius(CONTEXT_LINES)
+        .header(name, &format!("{name} (formatted)"))
+        .to_string()
+}
+
+/// Lines of unchanged context around each hunk, as `diff -u` uses.
+const CONTEXT_LINES: usize = 3;
 
 // -- lint -------------------------------------------------------------------
 
@@ -856,6 +843,23 @@ mod tests {
         // look and the working directory is what is left.
         let cwd = std::env::current_dir().expect("should have a working directory");
         assert_eq!(base_dir(&[PathBuf::from("-")]), cwd);
+    }
+
+    #[test]
+    fn distant_changes_are_separate_hunks() {
+        // The whole point of using a real diff. An earlier hand-written one
+        // trimmed the common prefix and suffix and printed everything between,
+        // so these two one-line changes came out as the entire file, twice.
+        let before = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\n";
+        let after = "A\nb\nc\nd\ne\nf\ng\nh\ni\nj\nK\n";
+        let diff = diff("x.gd", before, after);
+
+        assert_eq!(diff.matches("@@").count(), 4, "two hunks:\n{diff}");
+        assert!(diff.contains("-a\n") && diff.contains("+A\n"), "{diff}");
+        assert!(diff.contains("-k\n") && diff.contains("+K\n"), "{diff}");
+        // The untouched middle appears once as context, not twice as a change.
+        assert!(!diff.contains("-e\n"), "{diff}");
+        assert!(!diff.contains("+e\n"), "{diff}");
     }
 
     #[test]
