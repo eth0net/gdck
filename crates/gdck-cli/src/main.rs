@@ -154,10 +154,7 @@ fn run(cli: &Cli) -> Result<ExitCode> {
             "fix",
             "It will format files and apply fixable lint rules.",
         )),
-        Command::Format(_) => Ok(unimplemented_command(
-            "format",
-            "The parser it builds on is done; the pretty printer is next.",
-        )),
+        Command::Format(args) => run_format(args, &config),
         Command::Lint(_) => Ok(unimplemented_command(
             "lint",
             "See docs/RULES.md for the rules it will ship with.",
@@ -174,6 +171,139 @@ fn unimplemented_command(name: &str, note: &str) -> ExitCode {
     eprintln!("      {note}");
     eprintln!("      `gdck parse` works today. Progress: https://github.com/eth0net/gdck");
     ExitCode::from(EXIT_ERROR)
+}
+
+fn run_format(args: &FormatArgs, config: &Config) -> Result<ExitCode> {
+    let mut format_config = config.format.clone();
+    if let Some(line_length) = args.line_length {
+        format_config.line_length = line_length;
+    }
+    if args.fast {
+        format_config.safety_checks = false;
+    }
+
+    let paths = files::collect(&args.paths.paths, config)?;
+    if paths.is_empty() {
+        eprintln!("No .gd files found.");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let mut changed = Vec::new();
+    let mut failed = 0usize;
+
+    for path in &paths {
+        let source = match files::read(path) {
+            Ok(source) => source,
+            Err(error) => {
+                eprintln!("gdck: {error:#}");
+                failed += 1;
+                continue;
+            }
+        };
+
+        let formatted = match gdck_format::format_source(&source.text, &format_config) {
+            Ok(formatted) => formatted,
+            Err(error) => {
+                eprintln!("gdck: {}: {error}", source.name);
+                failed += 1;
+                continue;
+            }
+        };
+
+        if formatted == source.text {
+            // Standard input has to come back out either way, or `gdck format
+            // --fix - < in.gd > out.gd` would empty an already-clean file.
+            if args.fix && source.name == files::STDIN {
+                print!("{formatted}");
+            }
+            continue;
+        }
+        changed.push(source.name.clone());
+
+        if args.diff {
+            print_diff(&source.name, &source.text, &formatted);
+        }
+
+        if args.fix {
+            // Reading from standard input has nowhere to write back to, so the
+            // result goes to standard output instead.
+            if source.name == files::STDIN {
+                print!("{formatted}");
+            } else {
+                std::fs::write(path, &formatted)?;
+            }
+        } else if !args.diff {
+            println!("{}", source.name);
+        }
+    }
+
+    if failed > 0 {
+        return Ok(ExitCode::from(EXIT_ERROR));
+    }
+
+    // Summaries go to standard error so that standard output carries only
+    // content: the formatted file when reading from `-`, the diff under
+    // --diff, and otherwise the list of paths that would change, which is
+    // what makes `gdck format` usable in a pipeline.
+    if changed.is_empty() {
+        eprintln!(
+            "{} {} already formatted.",
+            paths.len(),
+            plural(paths.len(), "file is", "files are")
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    if args.fix {
+        eprintln!(
+            "Formatted {} {}.",
+            changed.len(),
+            plural(changed.len(), "file", "files")
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    eprintln!(
+        "{} {} would be reformatted. Run with --fix to apply.",
+        changed.len(),
+        plural(changed.len(), "file", "files")
+    );
+    Ok(ExitCode::from(EXIT_PROBLEMS))
+}
+
+/// A minimal unified diff, enough to see what would change.
+///
+/// Written by hand rather than pulled in as a dependency: the output is only
+/// ever read by a person deciding whether to run `--fix`, so the cost of a
+/// crate that computes a minimal edit script is not worth paying.
+fn print_diff(name: &str, before: &str, after: &str) {
+    println!("--- {name}");
+    println!("+++ {name} (formatted)");
+
+    let before: Vec<&str> = before.lines().collect();
+    let after: Vec<&str> = after.lines().collect();
+
+    // Trim the common prefix and suffix so the report is about what changed.
+    let prefix = before
+        .iter()
+        .zip(&after)
+        .take_while(|(a, b)| a == b)
+        .count();
+    let remaining = before.len().min(after.len()) - prefix;
+    let suffix = before
+        .iter()
+        .rev()
+        .zip(after.iter().rev())
+        .take(remaining)
+        .take_while(|(a, b)| a == b)
+        .count();
+
+    for line in &before[prefix..before.len() - suffix] {
+        println!("-{line}");
+    }
+    for line in &after[prefix..after.len() - suffix] {
+        println!("+{line}");
+    }
 }
 
 fn run_parse(args: &ParseArgs, config: &Config) -> Result<ExitCode> {

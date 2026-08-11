@@ -75,6 +75,20 @@ struct LambdaContext {
     /// Height of the indent stack when the lambda opened, so closing it emits
     /// exactly the dedents its body pushed.
     indent_len: usize,
+    /// Whether the body started on the same line as the `:`.
+    ///
+    /// `func(): return 1` is a complete lambda, so it ends where its line does.
+    /// Without this the next line's indentation would be taken for the start
+    /// of the body, and an argument list broken across lines —
+    ///
+    /// ```gdscript
+    /// connect(
+    ///     func(): return 1
+    /// )
+    /// ```
+    ///
+    /// — would swallow its own closing bracket.
+    inline: bool,
 }
 
 /// Tokenize `source`.
@@ -196,6 +210,8 @@ impl<'a> Lexer<'a> {
         // brackets deep it sits.
         while let Some(context) = self.lambda_stack.last() {
             match context.body_column {
+                // A body written on the `:` line is already complete.
+                None if context.inline => self.close_top_lambda(start),
                 None => {
                     self.lambda_stack
                         .last_mut()
@@ -317,7 +333,15 @@ impl<'a> Lexer<'a> {
                 bracket_depth: self.bracket_depth,
                 body_column: None,
                 indent_len: self.indents.len(),
+                inline: false,
             });
+        } else if let Some(context) = self.lambda_stack.last_mut()
+            && context.body_column.is_none()
+            && kind != SyntaxKind::Newline
+        {
+            // A token after the `:` and before any newline means the body is
+            // on this line, so the lambda ends with it.
+            context.inline = true;
         }
 
         if kind != SyntaxKind::Newline {

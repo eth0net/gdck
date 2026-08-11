@@ -208,31 +208,68 @@ file rather than the `class_name` that follows, so they stay as siblings. The
 distinction is by target: declarations that can be annotated adopt them,
 `class_name` and `extends` do not.
 
-## Planned: the formatter
+## The formatter
 
-A Wadler-style pretty printer in two stages.
+### Two stages
 
-1. **Lower** the CST to a document IR of `Text`, `Line`, `Group` and `Indent`.
-   Comments and blank-line runs ride along as attachments on the construct they
-   lead or trail.
-2. **Render** at the configured width, breaking the outermost group that does
-   not fit and recurring inwards.
+`lower` turns the syntax tree into a document IR describing where a line *may*
+break; the renderer decides where it *does*, given the width. Keeping those
+apart means the style-guide rules live in one place rather than being spread
+through string concatenation.
 
-Rules that fall out of the IR: the 100-column wrap, one space around operators
-and after commas, two blank lines around top-level definitions and one inside
-classes, trailing commas on anything that breaks across lines, single-indent
-continuations for collections against double-indent for wrapped expressions.
+The IR is the usual Wadler set — text, soft and hard breaks, groups, indent,
+and a break-dependent choice for trailing commas — plus two additions that
+GDScript needs:
 
-Rules needing explicit handling: double quotes unless that adds escapes,
-lowercase hex, leading and trailing zeros on floats, dropping redundant
-parentheses.
+- `break_parent` emits nothing but forces every enclosing group open. It carries
+  "the author wrapped this" and "there is a comment here" outwards.
+- `flat` renders its contents on one line whatever the width, for `match`
+  patterns. A pattern sits between `match` and `:` with no brackets around it,
+  so a line break in one is a syntax error rather than a long line.
 
-### Safety checks
+### Where the guide is the specification
 
-Before writing, the formatter re-parses its own output and verifies that the
-token stream is equivalent modulo trivia, that a second pass is a no-op, and
-that no comment was dropped. A formatter that silently eats code is much worse
-than one that refuses to run. On by default; `--fast` turns them off.
+Every code sample in the style guide is extracted into a test fixture by
+`tools/extract-style-guide-samples.py` and classified in
+`crates/gdck-format/tests/style_guide.rs`. Doing that settled several questions
+that reading the prose did not:
+
+- **Blank lines inside a class.** The guide says to surround definitions with
+  two blank lines, but its own worked example ends with an inner class whose
+  `func` has one. Two at file level, one inside a class.
+- **Parameter defaults.** The whitespace rule says one space around operators,
+  yet two separate samples write `func take_damage(amount, effect=null)`. A
+  default with no type hint is written tight; one with a type hint is spaced,
+  which is the surrounding convention and contradicts no sample.
+- **Inline comment spacing.** The guide states no rule, but writes
+  `print("Example") # Short comment.` — one space, where `gdformat` uses two.
+- **Enums.** "Write enums with each item on its own line" is explicit, so an
+  enum body always breaks regardless of width.
+
+### Known differences from the guide
+
+Three samples are not reproducible by any deterministic rule, because they are
+hand-formatted rather than derived from the column limit: two wrap a call by
+filling several arguments per line, and one wraps a boolean chain two
+comparisons per line. In each case the guide's break points do not match where a
+real fill at 100 columns would land. `gdck` puts one item per line, which is
+deterministic and produces better diffs. They are listed as exceptions in the
+conformance test so the deviation cannot become accidental.
+
+### Comments
+
+The parser keeps comments as trivia in front of the token that follows, which is
+right for a lossless tree and the wrong shape for a formatter. `trivia.rs`
+re-indexes them into leading comments — those on a line of their own, attached
+to the next significant token — and trailing ones, attached to the last
+significant token before them.
+
+Two details matter. A comment after `1,` anchors on the `1` rather than on the
+comma, because the formatter may move or remove that comma and would strand the
+comment. And a comment on the last line of a block is anchored on a token that
+is also the last token of the block, of the function holding it, and of every
+construct up to the file, so emitted anchors are tracked to stop each of them
+emitting it again.
 
 ## Planned: the linter
 

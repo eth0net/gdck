@@ -13,5 +13,8 @@ authors.workspace = true
 gdck-config.workspace = true
 gdck-syntax.workspace = true
 
+[dev-dependencies]
+gdck-syntax.workspace = true
+
 [lints]
 workspace = true
