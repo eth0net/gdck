@@ -146,31 +146,11 @@ fn run(cli: &Cli) -> Result<ExitCode> {
 
     match &cli.command {
         Command::Parse(args) => run_parse(args, &config),
-        Command::Check(_) => Ok(unimplemented_command(
-            "check",
-            "It will run the linter and report formatting differences.",
-        )),
-        Command::Fix(_) => Ok(unimplemented_command(
-            "fix",
-            "It will format files and apply fixable lint rules.",
-        )),
+        Command::Check(args) => run_check(args, &config),
+        Command::Fix(args) => run_fix(args, &config),
         Command::Format(args) => run_format(args, &config),
-        Command::Lint(_) => Ok(unimplemented_command(
-            "lint",
-            "See docs/RULES.md for the rules it will ship with.",
-        )),
+        Command::Lint(args) => run_lint(args, &config),
     }
-}
-
-/// Report a subcommand that exists in the interface but has no implementation.
-///
-/// The surface is wired up in full deliberately: it pins the design down and
-/// means `gdck --help` documents where the project is going.
-fn unimplemented_command(name: &str, note: &str) -> ExitCode {
-    eprintln!("gdck: `{name}` is not implemented yet.");
-    eprintln!("      {note}");
-    eprintln!("      `gdck parse` works today. Progress: https://github.com/eth0net/gdck");
-    ExitCode::from(EXIT_ERROR)
 }
 
 fn run_format(args: &FormatArgs, config: &Config) -> Result<ExitCode> {
@@ -304,6 +284,276 @@ fn print_diff(name: &str, before: &str, after: &str) {
     for line in &after[prefix..after.len() - suffix] {
         println!("+{line}");
     }
+}
+
+// -- lint -------------------------------------------------------------------
+
+fn run_lint(args: &LintArgs, config: &Config) -> Result<ExitCode> {
+    let paths = files::collect(&args.paths.paths, config)?;
+    if paths.is_empty() {
+        eprintln!("No .gd files found.");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let mut reported = 0usize;
+    let mut fixed_files = 0usize;
+    let mut failed = 0usize;
+
+    for path in &paths {
+        let source = match files::read(path) {
+            Ok(source) => source,
+            Err(error) => {
+                eprintln!("gdck: {error:#}");
+                failed += 1;
+                continue;
+            }
+        };
+        let name = file_name(path);
+        let mut text = source.text.clone();
+
+        if args.fix {
+            let fixed = gdck_lint::fix_source(&text, &config.lint, name);
+            if fixed != text {
+                fixed_files += 1;
+                text = fixed;
+                if source.name != files::STDIN {
+                    std::fs::write(path, &text)?;
+                }
+            }
+            // Standard input has nowhere to write back to, and has to come
+            // back out even when nothing changed or `gdck lint --fix - < in >
+            // out` would empty a clean file.
+            if source.name == files::STDIN {
+                print!("{text}");
+            }
+        }
+
+        let tree = gdck_syntax::parse(&text);
+        let diagnostics = gdck_lint::lint_file(&tree, &config.lint, name);
+        reported += diagnostics.len();
+        // When the fixed file owns standard output, what is left to report
+        // goes beside it rather than into it.
+        let to_stderr = args.fix && source.name == files::STDIN;
+        print_diagnostics(&source.name, &text, &diagnostics, to_stderr);
+    }
+
+    if failed > 0 {
+        return Ok(ExitCode::from(EXIT_ERROR));
+    }
+    if args.fix {
+        eprintln!(
+            "Fixed {} {}.",
+            fixed_files,
+            plural(fixed_files, "file", "files")
+        );
+    }
+    if reported == 0 {
+        eprintln!(
+            "{} {} clean.",
+            paths.len(),
+            plural(paths.len(), "file is", "files are")
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    eprintln!(
+        "Found {reported} {}.",
+        plural(reported, "problem", "problems")
+    );
+    Ok(ExitCode::from(EXIT_PROBLEMS))
+}
+
+/// One line per diagnostic: `file:line:col: severity: message [rule]`.
+///
+/// The rule name is on every line so that the fix — adding it to `disable` or
+/// to a `# gdlint: ignore=` comment — can be copied straight out of the report.
+fn print_diagnostics(
+    name: &str,
+    source: &str,
+    diagnostics: &[gdck_lint::Diagnostic],
+    to_stderr: bool,
+) {
+    if diagnostics.is_empty() {
+        return;
+    }
+    let index = LineIndex::new(source);
+    for diagnostic in diagnostics {
+        let at = index.line_col(diagnostic.range.start());
+        let line = format!(
+            "{name}:{at}: {}: {} [{}]",
+            diagnostic.severity, diagnostic.message, diagnostic.rule
+        );
+        if to_stderr {
+            eprintln!("{line}");
+        } else {
+            println!("{line}");
+        }
+    }
+}
+
+/// The final path component, which is what the `file-name` rule is about.
+fn file_name(path: &std::path::Path) -> Option<&str> {
+    if path.as_os_str() == files::STDIN {
+        // There is no file, so there is no file name to hold to a convention.
+        return None;
+    }
+    path.file_name().and_then(|name| name.to_str())
+}
+
+// -- check and fix ----------------------------------------------------------
+
+fn run_check(args: &CheckArgs, config: &Config) -> Result<ExitCode> {
+    let paths = files::collect(&args.paths.paths, config)?;
+    if paths.is_empty() {
+        eprintln!("No .gd files found.");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let mut unformatted = 0usize;
+    let mut reported = 0usize;
+    let mut failed = 0usize;
+
+    for path in &paths {
+        let source = match files::read(path) {
+            Ok(source) => source,
+            Err(error) => {
+                eprintln!("gdck: {error:#}");
+                failed += 1;
+                continue;
+            }
+        };
+
+        let tree = gdck_syntax::parse(&source.text);
+        let diagnostics = gdck_lint::lint_file(&tree, &config.lint, file_name(path));
+        reported += diagnostics.len();
+        print_diagnostics(&source.name, &source.text, &diagnostics, false);
+
+        match gdck_format::format(&tree, &config.format) {
+            Ok(formatted) if formatted == source.text => {}
+            Ok(formatted) => {
+                unformatted += 1;
+                if args.diff {
+                    print_diff(&source.name, &source.text, &formatted);
+                } else {
+                    println!("{}: would be reformatted", source.name);
+                }
+            }
+            // A file that does not parse has already been reported on by the
+            // linter, which does not need it to.
+            Err(gdck_format::FormatError::Unparseable) => {}
+            Err(error) => {
+                eprintln!("gdck: {}: {error}", source.name);
+                failed += 1;
+            }
+        }
+    }
+
+    if failed > 0 {
+        return Ok(ExitCode::from(EXIT_ERROR));
+    }
+    if reported == 0 && unformatted == 0 {
+        eprintln!(
+            "{} {} clean.",
+            paths.len(),
+            plural(paths.len(), "file is", "files are")
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    eprintln!(
+        "Found {reported} lint {} and {unformatted} {} to reformat. Run `gdck fix` to apply.",
+        plural(reported, "problem", "problems"),
+        plural(unformatted, "file", "files")
+    );
+    Ok(ExitCode::from(EXIT_PROBLEMS))
+}
+
+fn run_fix(args: &FixArgs, config: &Config) -> Result<ExitCode> {
+    let mut format_config = config.format.clone();
+    if args.fast {
+        format_config.safety_checks = false;
+    }
+    let paths = files::collect(&args.paths.paths, config)?;
+    if paths.is_empty() {
+        eprintln!("No .gd files found.");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let mut changed = 0usize;
+    let mut remaining = 0usize;
+    let mut failed = 0usize;
+
+    for path in &paths {
+        let source = match files::read(path) {
+            Ok(source) => source,
+            Err(error) => {
+                eprintln!("gdck: {error:#}");
+                failed += 1;
+                continue;
+            }
+        };
+        let name = file_name(path);
+
+        // Reordering, then lint fixes, then formatting. Each stage leaves
+        // something for the next to settle: a moved declaration brings its old
+        // blank lines with it, and a rewritten operator or a dropped
+        // parenthesis leaves spacing behind. Any other order would leave that
+        // in the file.
+        let mut text = source.text.clone();
+        if args.fix_order {
+            match gdck_lint::reorder(&text, &config.lint) {
+                gdck_lint::Reorder::Reordered(reordered) => text = reordered,
+                gdck_lint::Reorder::Unchanged => {}
+                gdck_lint::Reorder::Blocked(reason) => {
+                    // Not a failure. The file is left exactly as it was, which
+                    // is the documented outcome, and the reason is what the
+                    // author needs in order to decide what to do about it.
+                    eprintln!("gdck: {}: not reordered: {reason}", source.name);
+                }
+            }
+        }
+        text = gdck_lint::fix_source(&text, &config.lint, name);
+        match gdck_format::format_source(&text, &format_config) {
+            Ok(formatted) => text = formatted,
+            Err(gdck_format::FormatError::Unparseable) => {}
+            Err(error) => {
+                eprintln!("gdck: {}: {error}", source.name);
+                failed += 1;
+                continue;
+            }
+        }
+
+        if text != source.text {
+            changed += 1;
+            if source.name != files::STDIN {
+                std::fs::write(path, &text)?;
+            }
+        }
+        if source.name == files::STDIN {
+            print!("{text}");
+        }
+
+        let tree = gdck_syntax::parse(&text);
+        let diagnostics = gdck_lint::lint_file(&tree, &config.lint, name);
+        remaining += diagnostics.len();
+        print_diagnostics(
+            &source.name,
+            &text,
+            &diagnostics,
+            source.name == files::STDIN,
+        );
+    }
+
+    if failed > 0 {
+        return Ok(ExitCode::from(EXIT_ERROR));
+    }
+    eprintln!("Fixed {changed} {}.", plural(changed, "file", "files"));
+    if remaining == 0 {
+        return Ok(ExitCode::SUCCESS);
+    }
+    eprintln!(
+        "{remaining} {} left that no fix can resolve.",
+        plural(remaining, "problem", "problems")
+    );
+    Ok(ExitCode::from(EXIT_PROBLEMS))
 }
 
 fn run_parse(args: &ParseArgs, config: &Config) -> Result<ExitCode> {

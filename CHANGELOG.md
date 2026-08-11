@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `gdck-lint`: a working linter, and `gdck lint`, `gdck check` and `gdck fix`.
+  - 33 rules covering the style guide's naming conventions, its formatting
+    rules, and the declaration order it prescribes; the design thresholds
+    inherited from `gdtoolkit`; and five correctness smells. The catalogue is
+    documented in [docs/RULES.md](docs/RULES.md), and a test fails if a rule
+    ships undocumented.
+  - Fixes for 10 of them, applied back to front so earlier offsets stay valid.
+    `quote-style` and `number-format` call into the formatter for their
+    rewrite, so the two cannot disagree about what the right spelling is.
+  - `code-order`, with `gdck fix --fix-order` to apply it. Reordering is
+    all-or-nothing per file, and is refused when an initialiser might read a
+    member the move would put below it. What it does produce is a permutation
+    of the source, so a declaration takes its comments and annotations with it
+    byte for byte.
+  - Suppression with `# gdlint: ignore=`, `disable=` and `enable=`, matching
+    `gdtoolkit`'s syntax and semantics. `gdtoolkit`'s rule names are accepted
+    as aliases wherever a rule is named, so an existing `gdlintrc` and existing
+    suppression comments keep working.
+  - Agreement with `gdlint` checked rule by rule over its own test corpus:
+    identical findings for `unused-argument`, `constant-name`,
+    `trailing-whitespace`, `function-name`, `enum-member-name`,
+    `argument-name`, `enum-name` and `max-arguments`, and every difference
+    elsewhere accounted for.
 - `gdck-format`: a working formatter, and `gdck format`.
   - A Wadler-style pretty printer over the syntax tree: two indent levels on
     continuation lines and one inside arrays, dictionaries and enums; trailing
@@ -36,6 +59,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gdck-syntax`: a single-line lambda inside a bracketed construct written
   across several lines (`connect(\n\tfunc(): return 1\n)`) took the closing
   bracket's line as the start of its body, swallowing the bracket.
+- `gdck-format`: a function's annotations were pulled up onto its declaration
+  line. The Godot documentation writes `@rpc("any_peer")` above the `func` and
+  `@export_range(0, 10) var lives` beside the `var`, so the two are now
+  distinguished. `@abstract` stays inline either way, as a modifier.
 
 ### Changed
 

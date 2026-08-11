@@ -102,7 +102,12 @@ impl Default for LintConfig {
 /// Naming patterns from the style guide's conventions table.
 ///
 /// Kept as source strings rather than compiled patterns so that this crate
-/// stays dependency-free; the linter compiles them once at startup.
+/// stays dependency-free. The linter matches these patterns directly rather
+/// than with a regular-expression engine — recognising
+/// `[a-z][a-z0-9]*(_[a-z0-9]+)*` does not need one, and not having one keeps a
+/// dependency out of a tool that runs on every save. They are written out here
+/// because this is the form a project would use to override a convention, and
+/// because it is the least ambiguous way to state one.
 pub mod naming {
     pub const PASCAL_CASE: &str = r"([A-Z][a-z0-9]*)+";
     pub const SNAKE_CASE: &str = r"[a-z][a-z0-9]*(_[a-z0-9]+)*";

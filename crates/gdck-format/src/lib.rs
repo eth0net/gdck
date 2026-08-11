@@ -28,7 +28,7 @@
 //! [`FormatConfig::safety_checks`] turns them off.
 
 mod doc;
-mod literal;
+pub mod literal;
 mod lower;
 mod trivia;
 
@@ -345,6 +345,21 @@ mod tests {
     #[test]
     fn abstract_stays_on_the_inner_class_line() {
         check_stable("@abstract class MyNode extends Node:\n\tpass\n");
+    }
+
+    #[test]
+    fn a_functions_annotations_take_a_line_each() {
+        // How the Godot documentation writes them: `@rpc(...)` above the func,
+        // `@export_range(...)` beside the var.
+        check_stable("@rpc(\"any_peer\")\nfunc ping() -> void:\n\tpass\n");
+        check(
+            "@rpc(\"any_peer\") func ping() -> void:\n\tpass\n",
+            "@rpc(\"any_peer\")\nfunc ping() -> void:\n\tpass\n",
+        );
+        check_stable("@export_range(0, 10) var lives = 3\n");
+        // `@abstract` is a modifier, and the language reference writes it
+        // inline: `@abstract func draw()`.
+        check_stable("@abstract\nclass_name Shape\n\n\n@abstract func area() -> float\n");
     }
 
     #[test]

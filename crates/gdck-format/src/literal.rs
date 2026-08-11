@@ -3,6 +3,11 @@
 //! These are the style-guide rules that no amount of clever line breaking
 //! produces on its own, because they are about the spelling of a token rather
 //! than its placement.
+//!
+//! This module is public so the linter can report a badly spelled literal and
+//! offer the formatter's own rewrite as the fix. Two implementations that
+//! disagreed would show up as `gdck lint --fix` producing something
+//! `gdck format` then changed again.
 
 /// Rewrite a number literal to the style guide's spelling.
 ///
@@ -11,7 +16,8 @@
 /// alone — the guide suggests them for large numbers but calls the threshold a
 /// generality, so inserting or removing them is a judgement a formatter should
 /// not make.
-pub(crate) fn normalize_number(text: &str) -> String {
+#[must_use]
+pub fn normalize_number(text: &str) -> String {
     if let Some(rest) = strip_radix_prefix(text) {
         let (prefix, digits) = text.split_at(text.len() - rest.len());
         return format!(
@@ -60,7 +66,8 @@ fn strip_radix_prefix(text: &str) -> Option<&str> {
 /// Raw and triple-quoted strings are returned unchanged: in a raw string the
 /// backslash is not reliably an escape, and a triple-quoted string may contain
 /// bare quotes whose meaning depends on position.
-pub(crate) fn normalize_string(text: &str) -> String {
+#[must_use]
+pub fn normalize_string(text: &str) -> String {
     let Some(quote_at) = text.find(['"', '\'']) else {
         // `$Node/Path` and `%Unique` have no quoted part.
         return text.to_string();
