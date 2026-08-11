@@ -100,6 +100,15 @@ impl<'a> SyntaxNode<'a> {
         self.id
     }
 
+    /// The tree this node belongs to.
+    ///
+    /// Needed to resolve the [`NodeId`]s handed out by [`Self::children`],
+    /// which is how a caller walks nodes and tokens together in source order.
+    #[must_use]
+    pub fn tree(self) -> &'a SyntaxTree {
+        self.tree
+    }
+
     #[must_use]
     pub fn kind(self) -> SyntaxKind {
         self.tree.data(self.id).kind

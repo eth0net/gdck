@@ -64,3 +64,9 @@ jobs:
         env:
           GDCK_CORPUS: corpus/tests
         run: cargo test -p gdck-syntax --test corpus -- --nocapture
+      # Formatting every file with the safety checks on proves each one still
+      # parses, means the same thing, kept its comments, and is stable.
+      - name: Format the corpus
+        env:
+          GDCK_CORPUS: corpus/tests
+        run: cargo test -p gdck-format --test corpus -- --nocapture

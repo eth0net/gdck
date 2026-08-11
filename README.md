@@ -4,8 +4,8 @@ A fast GDScript formatter and linter, faithful to the [official GDScript style
 guide][styleguide].
 
 > [!WARNING]
-> **Work in progress.** The lexer and parser are done and tested; the formatter
-> and linter are not written yet. Only `gdck parse` does anything useful today.
+> **Work in progress.** The parser and formatter are done and tested; the
+> linter is not written yet. `gdck parse` and `gdck format` work today.
 > See [Status](#status).
 
 `gdck` is a ground-up reimplementation of [`godot-gdscript-toolkit`][gdtoolkit]
@@ -17,17 +17,21 @@ in place, so you can try it on a project without giving up a working setup.
 
 ## Why
 
-**Speed.** Formatters and linters run on every save and every commit, so startup
-cost is most of what you actually feel. Parsing a 324-file, 7,800-line corpus:
+**Speed.** Formatters and linters run on every save and every commit, so both
+startup cost and throughput are things you actually feel. Over a 321-file,
+7,700-line corpus:
 
-| | wall clock |
-|---|---|
-| `gdck parse` | ~4 ms |
-| `gdparse` | ~70 ms |
+| | `gdck` | `gdtoolkit` |
+|---|---|---|
+| parse | 4 ms | 70 ms |
+| format, safety checks on | 56 ms | 802 ms |
+| format, safety checks off | 24 ms | 716 ms |
 
-Most of that gap is Python interpreter startup rather than parsing throughput —
-which is the point, since that cost is paid on every invocation. Measured on an
-M-series Mac over 10 runs; reproduce with the corpus test described below.
+For parsing, most of the gap is Python interpreter startup rather than
+throughput — which still counts, since it is paid on every invocation. For
+formatting it is mostly real work: both tools re-parse their own output to
+verify it by default. Measured on an M-series Mac, averaged over 10 runs
+(`gdck`) and 3 (`gdformat`); reproduce with the corpus described below.
 
 **Style-guide fidelity.** The style guide says more than `gdtoolkit` enforces —
 notably [code order][order], quote style, number formatting, and when to use
@@ -124,6 +128,34 @@ semantics at all, so files needing only those moved always sort cleanly.
 
 Reordering is opt-in (`--fix-order`) until the analysis has more mileage.
 
+### Formatting you asked for is formatting you keep
+
+The style guide shows `var array = [1, 2, 3]` and the same array spread over
+four lines as *both* good, and marks an 83-column `if` as bad for not being
+wrapped. Neither follows from a column limit, so `gdck` treats the author's own
+line breaks as the deciding vote: a bracketed construct written across several
+lines stays that way and gains its trailing comma, and one written on a single
+line stays there if it fits. To collapse a construct, delete the newlines.
+
+### Nothing is written until the output has been checked
+
+Before returning, the formatter re-parses its own output and verifies that it
+parses, that the tree still means the same thing, that no comment was lost, and
+that a second pass changes nothing. If any of those fail, the file is left alone
+and the reason is reported. `--fast` turns them off.
+
+These are not decoration. Every one of them caught real bugs while the formatter
+was being written, including a lexer bug where a single-line lambda inside a
+wrapped argument list swallowed its own closing bracket. A formatter that
+silently eats code is far worse than one that refuses to run.
+
+The equivalence used is tree shape rather than token stream, since the guide
+asks for rewrites that move tokens: hoisting an inner class's `extends` onto the
+declaration line, and dropping redundant parentheses. Comparing shape is weaker
+in exactly those places and stronger where it matters — grouping is encoded by
+the nesting, so a parenthesis that actually mattered shows up as a differently
+shaped expression rather than as two missing tokens.
+
 ### The tree keeps every byte
 
 Whitespace, comments and blank lines are all nodes in the syntax tree, and the
@@ -139,18 +171,30 @@ it merely failed to understand.
 | `gdck-syntax` — lexer | Done. Indentation, all literal forms, multi-line lambdas |
 | `gdck-syntax` — parser | Done. Full declaration and expression grammar, error recovery |
 | `gdck-config` | Types and file discovery done; reading `gdck.toml` not wired up |
-| `gdck-format` | Not started. Design notes in the crate docs |
+| `gdck-format` | Done. Wadler pretty printer with safety checks |
 | `gdck-lint` | Not started. Rule catalogue in the crate docs |
-| `gdck parse` | Works |
-| `gdck check` / `fix` / `format` / `lint` | Interface defined, exits 2 |
+| `gdck parse` / `gdck format` | Work |
+| `gdck check` / `fix` / `lint` | Interface defined, exits 2 |
 
 The parser handles every file in `gdtoolkit`'s corpus of valid GDScript — 324
 files across its parser, formatter and `gd2py` test suites — and round-trips all
-353 files there, including the deliberately invalid ones.
+353 files there, including the deliberately invalid ones. The formatter formats
+every one of those valid files with its safety checks passing.
+
+The formatter is also tested against the style guide's own worked examples: all
+56 usable code samples are extracted from the documentation and asserted on
+directly, so the guide decides what correct output is. See
+[`crates/gdck-format/tests/style_guide.rs`](crates/gdck-format/tests/style_guide.rs)
+for the classification of every sample, including the three the formatter
+knowingly does not reproduce and why.
 
 ### Known gaps
 
 - Configuration files are not read yet; every run uses style-guide defaults.
+- The formatter does not fill lines. Where the style guide hand-wraps a call or
+  a boolean chain several items per line, `gdck` puts one per line. Both of the
+  guide's samples of that are hand-formatted rather than derived from a column
+  limit, so no deterministic rule reproduces them.
 - No `.gitignore` awareness when walking directories; only a fixed exclusion
   list (`.git`, `.godot`, `.import`, `addons`).
 - The parser is more permissive than Godot in places. It is built to understand
@@ -175,7 +219,21 @@ GDCK_CORPUS=../godot-gdscript-toolkit/tests \
 ```
 
 This checks that every `.gd` file under that directory round-trips through the
-tree byte for byte. It is skipped when the variable is unset.
+tree byte for byte. The formatter has a matching one:
+
+```sh
+GDCK_CORPUS=../godot-gdscript-toolkit/tests \
+  cargo test -p gdck-format --test corpus -- --nocapture
+```
+
+Both are skipped when the variable is unset.
+
+The style-guide fixtures are regenerated from a checkout of the documentation:
+
+```sh
+cargo build -p gdck-cli
+tools/extract-style-guide-samples.py ../godot-docs
+```
 
 See [docs/DESIGN.md](docs/DESIGN.md) for architecture, and
 [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
@@ -186,6 +244,10 @@ See [docs/DESIGN.md](docs/DESIGN.md) for architecture, and
 project measures itself against, and its test corpus has been invaluable for
 finding the corners of the grammar. It is MIT licensed; any vendored fixtures
 keep that license and attribution in [`licenses/`](licenses).
+
+The formatter's test fixtures are the code samples from the GDScript style
+guide, part of the Godot documentation and licensed CC BY 3.0. Attribution is
+in [`licenses/`](licenses).
 
 ## License
 

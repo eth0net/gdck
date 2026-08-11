@@ -1,0 +1,2 @@
+signal door_opened
+signal score_changed
