@@ -14,10 +14,28 @@
 //! GDCK_CORPUS=../godot-gdscript-toolkit/tests cargo test -p gdck-syntax --test corpus
 //! ```
 //!
+//! A relative path is taken as relative to the workspace root, which is what
+//! someone typing that from the repository root means. Cargo runs integration
+//! tests with the *crate* directory as the working directory, so resolving it
+//! against the process CWD would look in `crates/gdck-syntax/` instead.
+//!
 //! The test is skipped when the variable is unset, so it never breaks a clean
 //! checkout or CI.
 
 use std::path::{Path, PathBuf};
+
+/// Resolve a possibly-relative corpus path against the workspace root.
+fn resolve_from_workspace_root(raw: &str) -> PathBuf {
+    let path = PathBuf::from(raw);
+    if path.is_absolute() {
+        return path;
+    }
+    // CARGO_MANIFEST_DIR is `<workspace>/crates/gdck-syntax`.
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join(path)
+}
 
 fn collect_gd_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -40,10 +58,16 @@ fn corpus_round_trips() {
         return;
     };
 
+    let root = resolve_from_workspace_root(&root);
+
     let mut paths = Vec::new();
-    collect_gd_files(Path::new(&root), &mut paths);
+    collect_gd_files(&root, &mut paths);
     paths.sort();
-    assert!(!paths.is_empty(), "no .gd files found under {root}");
+    assert!(
+        !paths.is_empty(),
+        "no .gd files found under {}",
+        root.display()
+    );
 
     let mut checked = 0;
     let mut with_errors = Vec::new();
