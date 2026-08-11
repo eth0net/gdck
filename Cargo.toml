@@ -12,10 +12,14 @@ homepage = "https://github.com/eth0net/gdck"
 authors = ["eth0net"]
 
 [workspace.dependencies]
-gdck-config = { version = "0.1.0", path = "crates/gdck-config" }
-gdck-format = { version = "0.1.0", path = "crates/gdck-format" }
-gdck-lint = { version = "0.1.0", path = "crates/gdck-lint" }
-gdck-syntax = { version = "0.1.0", path = "crates/gdck-syntax" }
+# Path only, with no version requirement. A `version` here would be used solely
+# by `cargo publish`, and until these are on crates.io it just makes tooling
+# that resolves dependency names report four crates that do not exist. Add
+# `version = "x.y.z"` back when publishing.
+gdck-config = { path = "crates/gdck-config" }
+gdck-format = { path = "crates/gdck-format" }
+gdck-lint = { path = "crates/gdck-lint" }
+gdck-syntax = { path = "crates/gdck-syntax" }
 
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive", "wrap_help"] }
