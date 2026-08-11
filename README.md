@@ -63,6 +63,7 @@ One rule governs the whole interface:
 ```sh
 gdck check .              # report everything, read-only
 gdck fix .                # apply everything
+gdck fix --fix-order .    # and reorder declarations where that is provably safe
 
 gdck format src/          # report formatting differences
 gdck format --fix src/    # apply them
@@ -79,7 +80,14 @@ gdck parse --tokens a.gd  # dump the token stream
 narrower ones. `--check` is accepted everywhere as a no-op, because people
 coming from `gdformat` and `black` will type it out of habit.
 
+Reports go to standard output and summaries to standard error, so standard
+output carries only content — the diagnostics, the diff under `--diff`, or the
+file itself when reading from `-`.
+
 Exit codes: `0` clean, `1` problems found, `2` the run could not complete.
+
+Every rule is listed in [docs/RULES.md](docs/RULES.md), along with how to turn
+one off for a line, a region or the project.
 
 ### Reading from standard input
 
