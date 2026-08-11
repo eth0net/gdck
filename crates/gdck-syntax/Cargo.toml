@@ -1,0 +1,18 @@
+[package]
+name = "gdck-syntax"
+description = "Lossless lexer and parser for GDScript"
+keywords = ["godot", "gdscript", "parser", "lexer", "cst"]
+categories = ["parser-implementations", "development-tools"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
