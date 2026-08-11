@@ -1,0 +1,28 @@
+[package]
+name = "gdck-cli"
+description = "A fast GDScript formatter and linter"
+keywords = ["godot", "gdscript", "formatter", "linter"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "../../README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "gdck"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+gdck-config.workspace = true
+gdck-format.workspace = true
+gdck-lint.workspace = true
+gdck-syntax.workspace = true
+
+[lints]
+workspace = true

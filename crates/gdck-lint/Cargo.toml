@@ -1,0 +1,17 @@
+[package]
+name = "gdck-lint"
+description = "GDScript linter (in development)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+gdck-config.workspace = true
+gdck-syntax.workspace = true
+
+[lints]
+workspace = true
