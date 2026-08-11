@@ -27,12 +27,12 @@
 //! things a deserialiser cannot know — ranges, and settings that only mean
 //! something alongside another.
 //!
-//! The `gdtoolkit` files are YAML, where there is no equivalent crate to
-//! reach for: `serde_yaml` is deprecated and its successors are young. They
-//! also want reading in a way `serde` is not shaped for — a `gdlintrc` holds
-//! dozens of settings `gdck` has no equivalent for, each of which should be
-//! skipped individually with a note rather than failing the file. So
-//! [`compat`] reads the handful of shapes those files actually take.
+//! The `gdtoolkit` files are read by [`yaml_serde`] into an untyped mapping
+//! rather than into a struct, because a `gdlintrc` holds dozens of settings
+//! `gdck` has no equivalent for and each should be skipped with a note rather
+//! than failing the file. A file that cannot be parsed at all *is* an error:
+//! none of its settings would apply, and a project formatted by rules it had
+//! written down and rejected is the outcome worse than not running.
 
 mod compat;
 mod schema;
@@ -272,7 +272,7 @@ pub fn discover_named(start: &Path, names: &[&str]) -> Option<PathBuf> {
 /// project already set up for `gdtoolkit` keeps its settings.
 pub fn resolve(start: &Path) -> Result<Loaded, Error> {
     /// One of the `gdtoolkit` readers: settings in, notes out.
-    type Reader = fn(&str, &mut Config) -> Vec<Problem>;
+    type Reader = fn(&str, &mut Config) -> Result<Vec<Problem>, Problem>;
 
     if let Some(path) = discover(start) {
         return load(&path);
@@ -290,7 +290,7 @@ pub fn resolve(start: &Path) -> Result<Loaded, Error> {
             continue;
         };
         let text = read_to_string(&path)?;
-        let problems = apply(&text, &mut loaded.config);
+        let problems = apply(&text, &mut loaded.config).map_err(|problem| at(&path, problem))?;
         loaded.notes.extend(notes_at(&path, problems));
         loaded.files.push(path);
     }
@@ -313,19 +313,24 @@ pub fn load(path: &Path) -> Result<Loaded, Error> {
         ..Loaded::default()
     };
     let problems = if GDLINT_FILE_NAMES.contains(&name.as_str()) {
-        compat::apply_gdlintrc(&text, &mut loaded.config)
+        compat::apply_gdlintrc(&text, &mut loaded.config).map_err(|problem| at(path, problem))?
     } else if GDFORMAT_FILE_NAMES.contains(&name.as_str()) {
-        compat::apply_gdformatrc(&text, &mut loaded.config)
+        compat::apply_gdformatrc(&text, &mut loaded.config).map_err(|problem| at(path, problem))?
     } else {
-        loaded.config = schema::read(&text).map_err(|problem| Error {
-            path: path.to_path_buf(),
-            line: Some(problem.line),
-            message: problem.message,
-        })?;
+        loaded.config = schema::read(&text).map_err(|problem| at(path, problem))?;
         Vec::new()
     };
     loaded.notes = notes_at(path, problems);
     Ok(loaded)
+}
+
+/// Pin a problem to the file it was found in.
+fn at(path: &Path, problem: Problem) -> Error {
+    Error {
+        path: path.to_path_buf(),
+        line: Some(problem.line),
+        message: problem.message,
+    }
 }
 
 fn notes_at(path: &Path, problems: Vec<Problem>) -> Vec<Note> {

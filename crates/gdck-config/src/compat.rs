@@ -18,12 +18,14 @@
 //! What it must not do is *silently* drop something that changes behaviour, so
 //! anything ignored that a reader would expect to matter comes back as a note.
 
+use yaml_serde::Value;
+
 use crate::{Config, IndentStyle, Problem};
 
 /// Apply a `gdlintrc` to a configuration, returning what could not be honoured.
-pub(crate) fn apply_gdlintrc(text: &str, config: &mut Config) -> Vec<Problem> {
+pub(crate) fn apply_gdlintrc(text: &str, config: &mut Config) -> Result<Vec<Problem>, Problem> {
     let mut notes = Vec::new();
-    for item in read(text, &mut notes) {
+    for item in read(text)? {
         let note = match item.key.as_str() {
             "disable" => match item.strings() {
                 Some(rules) => {
@@ -80,13 +82,13 @@ pub(crate) fn apply_gdlintrc(text: &str, config: &mut Config) -> Vec<Problem> {
         };
         notes.extend(note);
     }
-    notes
+    Ok(notes)
 }
 
 /// Apply a `gdformatrc` to a configuration, returning what could not be honoured.
-pub(crate) fn apply_gdformatrc(text: &str, config: &mut Config) -> Vec<Problem> {
+pub(crate) fn apply_gdformatrc(text: &str, config: &mut Config) -> Result<Vec<Problem>, Problem> {
     let mut notes = Vec::new();
-    for item in read(text, &mut notes) {
+    for item in read(text)? {
         let note = match item.key.as_str() {
             "line_length" => {
                 let note = set_u16(&item, &mut config.format.line_length);
@@ -124,7 +126,7 @@ pub(crate) fn apply_gdformatrc(text: &str, config: &mut Config) -> Vec<Problem> 
         };
         notes.extend(note);
     }
-    notes
+    Ok(notes)
 }
 
 fn set_u16(item: &Item, field: &mut u16) -> Option<Problem> {
@@ -231,250 +233,129 @@ const DEFAULT_DEFINITIONS_ORDER: &[&str] = &[
     "others",
 ];
 
-// -- the YAML subset ---------------------------------------------------------
+// -- reading the file -------------------------------------------------------
 
 /// One top-level `key:` and whatever followed it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct Item {
     key: String,
-    value: Node,
+    value: Value,
     line: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Node {
-    Null,
-    Bool(bool),
-    Integer(i64),
-    Text(String),
-    List(Vec<String>),
 }
 
 impl Item {
     fn is_null(&self) -> bool {
-        self.value == Node::Null
+        self.value.is_null()
     }
 
     fn integer(&self) -> Option<i64> {
-        match self.value {
-            Node::Integer(value) => Some(value),
-            _ => None,
-        }
+        self.value.as_i64()
     }
 
     fn boolean(&self) -> Option<bool> {
-        match self.value {
-            Node::Bool(value) => Some(value),
-            _ => None,
-        }
+        self.value.as_bool()
     }
 
     fn text(&self) -> Option<&str> {
-        match &self.value {
-            Node::Text(value) => Some(value),
-            _ => None,
-        }
+        self.value.as_str()
     }
 
-    /// The value as a list of strings. A list that is empty in the file still
+    /// The value as a list of strings.
+    ///
+    /// Two shapes carry one. A sequence is the obvious spelling, and the
+    /// mapping-of-nulls is what `yaml.dump` writes for a Python set, which is
+    /// how `gdtoolkit` stores `excluded_directories`. An empty list still
     /// counts, so `disable: []` clears the list rather than being ignored.
     fn strings(&self) -> Option<Vec<String>> {
         match &self.value {
-            Node::List(items) => Some(items.clone()),
+            Value::Sequence(items) => items
+                .iter()
+                .map(|item| item.as_str().map(str::to_string))
+                .collect(),
+            Value::Mapping(members) => members
+                .iter()
+                .map(|(key, value)| {
+                    value
+                        .is_null()
+                        .then(|| key.as_str().map(str::to_string))
+                        .flatten()
+                })
+                .collect(),
             _ => None,
         }
     }
 }
 
-/// Read the top-level mapping, noting any line that cannot be placed.
-fn read(text: &str, notes: &mut Vec<Problem>) -> Vec<Item> {
-    let lines: Vec<&str> = text.lines().collect();
-    let mut items = Vec::new();
-    let mut index = 0;
-
-    while index < lines.len() {
-        let line = lines[index];
-        let number = index as u32 + 1;
-        index += 1;
-
-        let trimmed = strip_comment(line);
-        if trimmed.trim().is_empty() {
-            continue;
-        }
-        if trimmed.starts_with([' ', '\t']) {
-            // Indented content belongs to the key above, which consumed it.
-            // Reaching one here means the file opens with an indented line or
-            // uses a shape the block reader did not take.
-            notes.push(Problem {
-                line: number,
-                message: "not understood; it is ignored".to_string(),
-            });
-            continue;
-        }
-
-        let Some((key, rest)) = split_key(trimmed) else {
-            notes.push(Problem {
-                line: number,
-                message: "not a `key: value` line; it is ignored".to_string(),
-            });
-            continue;
-        };
-
-        // A block belongs to this key when it is indented under it, whether or
-        // not a tag like `!!set` came first.
-        let rest = rest.trim();
-        let tagged = rest.starts_with("!!");
-        let value = if rest.is_empty() || tagged {
-            let block = take_block(&lines, &mut index);
-            let Some(value) = block_value(&block) else {
-                notes.push(Problem {
-                    line: number,
-                    message: format!("the value of `{key}` is not understood; it is ignored"),
-                });
-                continue;
-            };
-            value
-        } else {
-            scalar_or_flow(rest)
-        };
-
-        items.push(Item {
-            key,
-            value,
-            line: number,
-        });
-    }
-    items
-}
-
-/// The indented lines following a key, consumed from the line list.
-fn take_block<'a>(lines: &[&'a str], index: &mut usize) -> Vec<&'a str> {
-    let mut block = Vec::new();
-    while *index < lines.len() {
-        let line = strip_comment(lines[*index]);
-        if line.trim().is_empty() {
-            *index += 1;
-            continue;
-        }
-        if !line.starts_with([' ', '\t']) {
-            break;
-        }
-        block.push(line);
-        *index += 1;
-    }
-    block
-}
-
-/// A block of indented lines as a value.
+/// Read the top-level mapping.
 ///
-/// Two shapes carry a list: a sequence, and the mapping `yaml.dump` writes for
-/// a set. Anything else is left for the caller to note.
-fn block_value(block: &[&str]) -> Option<Node> {
-    if block.is_empty() {
-        return Some(Node::Null);
-    }
-    if block.iter().all(|line| line.trim_start().starts_with("- ")) {
-        return Some(Node::List(
-            block
-                .iter()
-                .map(|line| unquote(line.trim_start().trim_start_matches("- ").trim()))
-                .collect(),
-        ));
-    }
-    // `excluded_directories: !!set` followed by `  .git: null`, where the keys
-    // are the members and the values are all null.
-    let mut members = Vec::new();
-    for line in block {
-        let (key, rest) = split_key(line.trim())?;
-        if !matches!(scalar(rest.trim()), Node::Null) {
-            return None;
+/// Unlike anything else about these files, a parse failure *is* fatal. If the
+/// document cannot be read then none of its settings apply, which is the one
+/// outcome worse than not running: a project formatted by rules it had written
+/// down and rejected, with nothing said about it.
+fn read(text: &str) -> Result<Vec<Item>, Problem> {
+    let document: Value = yaml_serde::from_str(text).map_err(|error| Problem {
+        line: error.location().map_or(1, |at| at.line() as u32),
+        message: error.to_string(),
+    })?;
+
+    let mapping = match document {
+        // An empty file is an empty document, not a broken one.
+        Value::Null => return Ok(Vec::new()),
+        Value::Mapping(mapping) => mapping,
+        other => {
+            return Err(Problem {
+                line: 1,
+                message: format!("expected a mapping of settings, found {}", describe(&other)),
+            });
         }
-        members.push(key);
-    }
-    Some(Node::List(members))
+    };
+
+    Ok(mapping
+        .into_iter()
+        .filter_map(|(key, value)| {
+            let key = key.as_str()?.to_string();
+            let line = line_of(text, &key);
+            Some(Item { key, value, line })
+        })
+        .collect())
 }
 
-fn scalar_or_flow(text: &str) -> Node {
-    if let Some(inner) = text.strip_prefix('[').and_then(|to| to.strip_suffix(']')) {
-        return flow_list(inner);
-    }
-    if let Some(inner) = text.strip_prefix('{').and_then(|to| to.strip_suffix('}')) {
-        // A flow set, `{a, b}`, which is how a short `excluded_directories`
-        // gets written by hand.
-        return flow_list(inner);
-    }
-    scalar(text)
-}
-
-fn flow_list(inner: &str) -> Node {
-    if inner.trim().is_empty() {
-        return Node::List(Vec::new());
-    }
-    Node::List(
-        inner
-            .split(',')
-            .map(|item| unquote(item.trim()))
-            .filter(|item| !item.is_empty())
-            .collect(),
-    )
-}
-
-fn scalar(text: &str) -> Node {
-    match text {
-        "" | "null" | "Null" | "NULL" | "~" => Node::Null,
-        "true" | "True" | "TRUE" | "yes" | "on" => Node::Bool(true),
-        "false" | "False" | "FALSE" | "no" | "off" => Node::Bool(false),
-        _ => match text.parse::<i64>() {
-            Ok(number) => Node::Integer(number),
-            Err(_) => Node::Text(unquote(text)),
-        },
+fn describe(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "nothing",
+        Value::Bool(_) => "a boolean",
+        Value::Number(_) => "a number",
+        Value::String(_) => "a string",
+        Value::Sequence(_) => "a list",
+        Value::Mapping(_) => "a mapping",
+        Value::Tagged(_) => "a tagged value",
     }
 }
 
-/// Split `key: value`, respecting quotes around the key.
-fn split_key(line: &str) -> Option<(String, &str)> {
-    let line = line.trim();
-    if let Some(quote) = line
-        .chars()
-        .next()
-        .filter(|char| *char == '"' || *char == '\'')
-    {
-        let end = line[1..].find(quote)? + 1;
-        let rest = line[end + 1..].strip_prefix(':')?;
-        return Some((line[1..end].to_string(), rest));
-    }
-    let colon = line.find(':')?;
-    let key = line[..colon].trim();
-    if key.is_empty() {
-        return None;
-    }
-    Some((key.to_string(), &line[colon + 1..]))
+/// Which line a top-level key was written on.
+///
+/// The deserialiser reports a location for what it could not read, but not for
+/// what it could, and every note here names a line. Top-level keys are unique
+/// in a mapping, so finding the one that opens a line is unambiguous — and a
+/// key that somehow cannot be found falls back to the top of the file rather
+/// than to a wrong answer.
+fn line_of(text: &str, key: &str) -> u32 {
+    text.lines()
+        .position(|line| opens_with_key(line, key))
+        .map_or(1, |index| index as u32 + 1)
 }
 
-/// Drop a trailing comment, which YAML requires be preceded by a space.
-fn strip_comment(line: &str) -> &str {
-    let mut quote: Option<char> = None;
-    for (offset, char) in line.char_indices() {
-        match (quote, char) {
-            (None, '"' | '\'') => quote = Some(char),
-            (Some(open), char) if char == open => quote = None,
-            (None, '#') if offset == 0 || line[..offset].ends_with([' ', '\t']) => {
-                return &line[..offset];
-            }
-            _ => {}
-        }
+fn opens_with_key(line: &str, key: &str) -> bool {
+    // Only a line with no indentation can hold a top-level key.
+    if line.starts_with([' ', '\t']) {
+        return false;
     }
-    line
-}
-
-fn unquote(text: &str) -> String {
-    let text = text.trim();
-    for quote in ['"', '\''] {
-        if text.len() >= 2 && text.starts_with(quote) && text.ends_with(quote) {
-            return text[1..text.len() - 1].to_string();
-        }
-    }
-    text.to_string()
+    let rest = line
+        .strip_prefix(key)
+        .or_else(|| line.strip_prefix(&format!("\"{key}\"")))
+        .or_else(|| line.strip_prefix(&format!("'{key}'")))
+        .map(str::trim_start);
+    rest.is_some_and(|rest| rest.starts_with(':'))
 }
 
 #[cfg(test)]
@@ -494,14 +375,19 @@ mod tests {
 
     fn lint(text: &str) -> (Config, Vec<String>) {
         let mut config = Config::default();
-        let notes = apply_gdlintrc(text, &mut config);
+        let notes = apply_gdlintrc(text, &mut config).expect("should read");
         (config, notes.into_iter().map(|note| note.message).collect())
     }
 
     fn format(text: &str) -> (Config, Vec<String>) {
         let mut config = Config::default();
-        let notes = apply_gdformatrc(text, &mut config);
+        let notes = apply_gdformatrc(text, &mut config).expect("should read");
         (config, notes.into_iter().map(|note| note.message).collect())
+    }
+
+    /// What a file that cannot be read at all reports.
+    fn refused(text: &str) -> Problem {
+        apply_gdlintrc(text, &mut Config::default()).expect_err("should not read")
     }
 
     #[test]
@@ -576,8 +462,9 @@ mod tests {
     fn a_default_naming_pattern_passes_without_comment() {
         // Every pattern in a dumped default config is a default, so a project
         // that has not touched them hears nothing.
+        // Quoted the way PyYAML writes a scalar that opens with `[`.
         let (_, notes) = lint(&format!(
-            "class-name: {PASCAL_CASE}\nsignal-name: {SNAKE_CASE}\n"
+            "class-name: {PASCAL_CASE}\nsignal-name: '{SNAKE_CASE}'\n"
         ));
         assert!(notes.is_empty(), "{notes:?}");
     }
@@ -619,10 +506,31 @@ mod tests {
     }
 
     #[test]
-    fn a_line_that_cannot_be_placed_is_reported_rather_than_skipped() {
-        let (_, notes) = lint("this is not yaml at all\n");
-        assert_eq!(notes.len(), 1);
-        assert!(notes[0].contains("not a `key: value` line"), "{notes:?}");
+    fn a_file_that_is_not_a_mapping_is_refused() {
+        // Nothing in one of these files is ignorable when the whole document
+        // cannot be read: none of its settings would apply, and a project
+        // would be formatted by rules it had written down and rejected.
+        assert!(
+            refused("this is not a mapping\n")
+                .message
+                .contains("expected a mapping")
+        );
+        assert!(refused("- a\n- b\n").message.contains("expected a mapping"));
+    }
+
+    #[test]
+    fn a_file_that_is_not_yaml_is_refused_at_the_line_it_broke_on() {
+        let problem = refused("max-returns: 3\ndisable: [unclosed\n");
+        assert_eq!(problem.line, 3);
+        assert!(!problem.message.is_empty());
+    }
+
+    #[test]
+    fn an_empty_file_is_read_as_saying_nothing() {
+        let (config, notes) = lint("");
+        assert_eq!(config, Config::default());
+        assert!(notes.is_empty());
+        assert!(lint("# only a comment\n").1.is_empty());
     }
 
     #[test]
@@ -636,69 +544,8 @@ mod tests {
     #[test]
     fn the_note_carries_the_line_it_is_about() {
         let mut config = Config::default();
-        let notes = apply_gdlintrc("max-returns: 3\n\nmax-locals: 15\n", &mut config);
+        let notes =
+            apply_gdlintrc("max-returns: 3\n\nmax-locals: 15\n", &mut config).expect("should read");
         assert_eq!(notes[0].line, 3);
-    }
-
-    #[test]
-    fn gdlints_whole_default_config_is_read_without_a_word() {
-        // The file `gdlint --dump-default-config` writes. Every value in it is
-        // a default, so nothing in it is an override and nothing needs saying.
-        let text = format!(
-            "class-definitions-order:\n{}\
-             class-load-variable-name: ({PASCAL_CASE}|{PRIVATE_SNAKE_CASE})\n\
-             class-name: {PASCAL_CASE}\n\
-             class-variable-name: {PRIVATE_SNAKE_CASE}\n\
-             comparison-with-itself: null\n\
-             constant-name: {PRIVATE_UPPER_SNAKE_CASE}\n\
-             disable: []\n\
-             duplicated-load: null\n\
-             enum-element-name: {UPPER_SNAKE_CASE}\n\
-             enum-name: {PASCAL_CASE}\n\
-             excluded_directories: !!set\n  .git: null\n\
-             expression-not-assigned: null\n\
-             function-argument-name: {PRIVATE_SNAKE_CASE}\n\
-             function-arguments-number: 10\n\
-             function-name: (_on_{PASCAL_CASE}(_[a-z0-9]+)*|{PRIVATE_SNAKE_CASE})\n\
-             function-preload-variable-name: {PASCAL_CASE}\n\
-             function-variable-name: {SNAKE_CASE}\n\
-             load-constant-name: ({PASCAL_CASE}|{PRIVATE_UPPER_SNAKE_CASE})\n\
-             loop-variable-name: {PRIVATE_SNAKE_CASE}\n\
-             max-file-lines: 1000\n\
-             max-line-length: 100\n\
-             max-public-methods: 20\n\
-             max-returns: 6\n\
-             mixed-tabs-and-spaces: null\n\
-             no-elif-return: null\n\
-             no-else-return: null\n\
-             signal-name: {SNAKE_CASE}\n\
-             sub-class-name: _?{PASCAL_CASE}\n\
-             tab-characters: 1\n\
-             trailing-whitespace: null\n\
-             unnecessary-pass: null\n\
-             unused-argument: null\n",
-            written_order(),
-        );
-        let (config, notes) = lint(&text);
-        assert!(notes.is_empty(), "{notes:?}");
-        // And it is gdtoolkit's defaults, which are gdck's too.
-        assert_eq!(config.lint.max_returns, 6);
-        assert_eq!(config.lint.max_line_length, 100);
-        assert_eq!(config.excluded_dirs, [".git"]);
-    }
-
-    #[test]
-    fn gdformats_whole_default_config_is_read_without_a_word() {
-        let (config, notes) = format(
-            "excluded_directories: !!set\n  .git: null\n\
-             line_length: 100\n\
-             safety_checks: null\n\
-             use_spaces: null\n",
-        );
-        assert_eq!(config.format.line_length, 100);
-        assert_eq!(config.format.indent, IndentStyle::Tabs);
-        assert!(config.format.safety_checks);
-        assert_eq!(config.excluded_dirs, [".git"]);
-        assert!(notes.is_empty(), "{notes:?}");
     }
 }

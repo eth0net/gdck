@@ -24,8 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     it for what a type cannot say: ranges, and settings that only mean
     something alongside another. An unknown key is an error naming the nearest
     key that exists, including when the mistake was the right key under the
-    wrong table. The `gdtoolkit` files are read here, since `serde_yaml` is
-    deprecated and those files want reading a setting at a time anyway.
+    wrong table. `gdlintrc` and `gdformatrc` are read by `yaml_serde` into an
+    untyped mapping, so a setting `gdck` has no equivalent for is skipped with
+    a note rather than failing the file — but a file that cannot be parsed at
+    all is an error, since none of its settings would apply.
   - Setting `format.line-length` moves `lint.max-line-length` with it unless
     that is set too, so the linter cannot report the lines the formatter just
     produced.
@@ -76,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `gdck-cli`: `--diff` printed the whole span between the first and last change
+  as removed and re-added, so two one-line changes at opposite ends of a file
+  printed the file twice. Diffs now come from `similar` and have hunks.
 - `gdck-syntax`: a single-line lambda inside a bracketed construct written
   across several lines (`connect(\n\tfunc(): return 1\n)`) took the closing
   bracket's line as the start of its body, swallowing the bracket.

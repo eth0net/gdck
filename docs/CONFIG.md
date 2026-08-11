@@ -188,8 +188,11 @@ rule is on, which is the default, so those pass without comment. `gdlint
 --dump-default-config` and `gdformat --dump-default-config` output are both read
 in full without a word.
 
-Nothing in a `gdtoolkit` file is ever fatal. It is allowed to hold settings that
-mean nothing here; what it must not do is have one silently not apply.
+A *setting* in a `gdtoolkit` file is never fatal — the file is allowed to hold
+ones that mean nothing here, and what matters is that none of them silently
+fails to apply. A file that is not valid YAML **is** fatal, on the same footing
+as a broken `gdck.toml`: none of its settings would apply, and being formatted
+by rules you had written down and rejected is worse than not running.
 
 ## `--config`
 
