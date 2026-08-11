@@ -109,6 +109,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   answer: that nothing reaches the disk without `--fix`, which stream each kind
   of output goes to, and which exit code comes back. Both of the `gdck-cli`
   fixes above were found by writing them.
+- `prek` hooks in `prek.toml`, running the file-hygiene checks plus `cargo fmt`
+  and `cargo clippy` on commit, and the tests, doctests and MSRV check on push.
+  The hygiene hooks are prek's builtins, so there is no repository to clone and
+  no Python to install. See [CONTRIBUTING.md](CONTRIBUTING.md).
+- `cargo deny` in `deny.toml`, checked in CI: security advisories, licences,
+  duplicate versions and crate provenance. The licence allow list is exactly
+  what the tree needs — `MIT`, `Apache-2.0` and `Unicode-3.0` — so anything
+  arriving with a fourth is a decision to be made rather than a default to be
+  inherited.
 
 ## [0.1.0] - 2026-08-11
 

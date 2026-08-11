@@ -1,0 +1,61 @@
+# Supply-chain checks for the dependency tree, run by `cargo deny`.
+# See https://embarkstudios.github.io/cargo-deny/ for the full schema.
+#
+#     cargo deny check
+#
+# Four questions, each of which can fail CI: is anything in the tree subject to
+# a security advisory, is every license one we can ship under, is the tree free
+# of duplicate versions, and did every crate come from where we think it did.
+#
+# What this does *not* do is look at any code. A crate can be entirely unsafe
+# and pass all four, so this is a tripwire for what changes underneath us
+# rather than a substitute for choosing dependencies carefully in the first
+# place — see the Dependencies section of docs/DESIGN.md for that part.
+
+[advisories]
+# No `ignore` entries. An advisory against something in this tree should be
+# dealt with rather than annotated, and if one ever has to be waived it belongs
+# here with a reason and a link.
+ignore = []
+
+[licenses]
+# The binary is distributed under `MIT OR Apache-2.0`, so everything linked
+# into it has to be compatible with both. This is the exact set the tree needs:
+# `Unicode-3.0` is `unicode-ident`, and nothing else asks for a fourth.
+#
+# Adding to this list is a licensing decision, not a build fix. A dependency
+# that fails here should be replaced unless the licence is genuinely one the
+# project is willing to ship under.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Unicode-3.0",
+]
+
+[bans]
+# Currently achievable: 45 crates and not one duplicate version. Keeping it at
+# `deny` is what stops that drifting one transitive bump at a time.
+#
+# When this does fire, the fix is usually to align a version rather than to
+# silence it. If two versions genuinely have to coexist for a while, add a
+# `skip` entry here saying which crate and why.
+multiple-versions = "deny"
+# Off, and only because of a decision recorded in the workspace Cargo.toml: the
+# four `gdck-*` crates depend on each other by path with no version
+# requirement, which reads as a wildcard. `allow-wildcard-paths` is the setting
+# for exactly that, but it declines to apply to crates that are nominally
+# publishable, which these are meant to become.
+#
+# What the check would otherwise catch is an external `foo = "*"`. Every
+# external dependency in the workspace carries a real version requirement, and
+# adding one that did not would be visible in review. Turn this back to "deny"
+# alongside the `version` fields, when there is something to publish.
+wildcards = "allow"
+
+[sources]
+# Everything comes from crates.io today. A git or alternate-registry dependency
+# is a real decision — it means no crates.io yanking, no advisory coverage by
+# default, and a build that depends on a host staying up — so it should be made
+# deliberately rather than arrive in a lockfile.
+unknown-registry = "deny"
+unknown-git = "deny"

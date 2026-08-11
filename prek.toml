@@ -1,0 +1,64 @@
+# Git hooks, run by `prek` (https://prek.j178.dev).
+#:schema https://www.schemastore.org/prek.json
+#
+# The split between stages is about latency. Anything that only reads the files
+# runs on `pre-commit`, so committing stays quick; anything that has to compile
+# the workspace runs on `pre-push`, where waiting is already the expectation and
+# where a failure is about to become a CI failure.
+#
+#     prek install
+#
+# The `pre-push` hooks are exactly what CI runs, minus the corpus jobs, which
+# need `godot-gdscript-toolkit` checked out beside the repo.
+
+default_install_hook_types = ["pre-commit", "pre-push"]
+
+exclude = '''
+(?x)^(
+  # Literal PyYAML output and extracted style-guide samples. Both are fixtures
+  # whose whole value is being byte-for-byte what the other tool produced, so
+  # nothing here may tidy them — least of all a whitespace fixer, when one of
+  # the rules under test is `trailing-whitespace`.
+  crates/gdck-config/tests/fixtures/|
+  crates/gdck-format/tests/style-guide/|
+  licenses/godot-docs
+)
+'''
+
+# Bundled with prek itself, so there is no repository to clone and no Python to
+# install: a fresh checkout can run these offline.
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "trailing-whitespace", args = ["--markdown-linebreak-ext=md"] },
+  { id = "end-of-file-fixer" },
+  # .gitattributes pins the working tree to LF; this catches a file that
+  # slipped in before it applied.
+  { id = "mixed-line-ending", args = ["--fix=lf"] },
+  { id = "check-merge-conflict" },
+  { id = "check-case-conflict" },
+  # Windows is a supported target and a CI platform, so a path that cannot
+  # exist there has to be caught here.
+  { id = "check-illegal-windows-names" },
+  { id = "check-yaml" },
+  { id = "check-toml" },
+  { id = "check-added-large-files" },
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+  # Formats in place and lets the run fail if anything moved, so the fix is
+  # `git add` rather than reading a diff.
+  { id = "cargo-fmt", name = "cargo fmt", entry = "cargo fmt --all", language = "system", files = '\.rs$', pass_filenames = false, require_serial = true },
+
+  { id = "cargo-clippy", name = "cargo clippy", entry = "cargo clippy --all-targets --workspace -- -D warnings", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true },
+
+  { id = "cargo-test", name = "cargo test", entry = "cargo test --all-targets --workspace", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true, stages = ["pre-push"] },
+
+  # --all-targets skips doctests, and the crate docs carry runnable examples,
+  # so CI runs both. So does this.
+  { id = "cargo-test-doc", name = "cargo test --doc", entry = "cargo test --doc --workspace", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true, stages = ["pre-push"] },
+
+  { id = "cargo-msrv", name = "cargo check (MSRV 1.85)", entry = "cargo +1.85.0 check --workspace", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true, stages = ["pre-push"] },
+]

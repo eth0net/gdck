@@ -18,7 +18,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --all-targets --workspace
@@ -29,7 +29,7 @@ jobs:
     name: fmt and clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -41,22 +41,43 @@ jobs:
     name: minimum supported rust version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.85.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace
+
+  deny:
+    name: supply chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Security advisories, licences, duplicate versions and where each crate
+      # came from. Configured in deny.toml, which says what each check is for.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          # Vulnerabilities already fail on their own. This escalates the rest
+          # — unmaintained and unsound notices, yanked versions, and an entry
+          # in the allow list nothing uses any more — to match the -D warnings
+          # the other jobs run under.
+          #
+          # The advisory database moves independently of this repository, so
+          # this job can start failing on a tree that has not changed. That is
+          # the point of it, and the escape hatch is an `ignore` entry in
+          # deny.toml with a reason, not a weaker setting here.
+          command-arguments: --deny warnings
 
   corpus:
     name: corpus conformance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # The reference implementation's test suite is the broadest corpus of real
       # GDScript available. Every file in it must round-trip through the tree.
       - name: Check out the reference corpus
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: Scony/godot-gdscript-toolkit
           path: corpus
