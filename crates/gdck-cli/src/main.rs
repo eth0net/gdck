@@ -319,10 +319,14 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<ExitCode> {
             }
         };
 
+        // Reading from standard input makes this a filter: there is no file to
+        // write back to, so the formatted text *is* the output, with or without
+        // --fix. Anything else and `gdck format - < in.gd > out.gd` writes the
+        // literal string `-` over the file, or empties an already-clean one.
+        let is_stdin = source.name == files::STDIN;
+
         if formatted == source.text {
-            // Standard input has to come back out either way, or `gdck format
-            // --fix - < in.gd > out.gd` would empty an already-clean file.
-            if args.fix && source.name == files::STDIN {
+            if is_stdin && !args.diff {
                 print!("{formatted}");
             }
             continue;
@@ -331,17 +335,11 @@ fn run_format(args: &FormatArgs, config: &Config) -> Result<ExitCode> {
 
         if args.diff {
             print_diff(&source.name, &source.text, &formatted);
-        }
-
-        if args.fix {
-            // Reading from standard input has nowhere to write back to, so the
-            // result goes to standard output instead.
-            if source.name == files::STDIN {
-                print!("{formatted}");
-            } else {
-                std::fs::write(path, &formatted)?;
-            }
-        } else if !args.diff {
+        } else if is_stdin {
+            print!("{formatted}");
+        } else if args.fix {
+            std::fs::write(path, &formatted)?;
+        } else {
             println!("{}", source.name);
         }
     }
@@ -674,7 +672,7 @@ fn run_fix(args: &FixArgs, config: &Config) -> Result<ExitCode> {
 fn run_parse(args: &ParseArgs, config: &Config) -> Result<ExitCode> {
     let paths = files::collect(&args.common.paths, config)?;
     if paths.is_empty() {
-        println!("No .gd files found.");
+        eprintln!("No .gd files found.");
         return Ok(ExitCode::SUCCESS);
     }
 
@@ -723,7 +721,7 @@ fn run_parse(args: &ParseArgs, config: &Config) -> Result<ExitCode> {
     }
 
     if !args.tree && !args.tokens {
-        println!(
+        eprintln!(
             "Parsed {} {} with no syntax errors.",
             paths.len(),
             plural(paths.len(), "file", "files")
