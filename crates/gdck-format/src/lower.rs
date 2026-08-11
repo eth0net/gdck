@@ -545,15 +545,15 @@ impl<'a> Lowerer<'a> {
         let mut members = block.map(|block| child_nodes(block)).unwrap_or_default();
 
         let mut extends = node.child_node_of(ExtendsDecl);
-        if extends.is_none()
-            && members.len() > 1
-            && let Some(index) = members
+        // `members.len() > 1` because a class whose only member is the
+        // `extends` would be left with an empty body, which does not parse.
+        if extends.is_none() && members.len() > 1 {
+            let body_level = members
                 .iter()
-                .position(|member| member.kind() == ExtendsDecl && self.has_no_comments(*member))
-        {
-            // `members.len() > 1` because a class whose only member is the
-            // `extends` would be left with an empty body, which does not parse.
-            extends = Some(members.remove(index));
+                .position(|member| member.kind() == ExtendsDecl && self.has_no_comments(*member));
+            if let Some(index) = body_level {
+                extends = Some(members.remove(index));
+            }
         }
 
         let mut parts = vec![
