@@ -241,8 +241,15 @@ impl<'a> Lowerer<'a> {
 
     /// Annotations attached to a declaration, each followed by a separator.
     ///
-    /// `@abstract` is the one that stays on the same line as what it modifies,
-    /// which is what the guide's inner-class example shows.
+    /// A function's annotations take a line each and a variable's stay beside
+    /// it, which is how the Godot documentation writes them throughout:
+    /// `@rpc("any_peer")` above the `func`, `@export_range(0, 10) var lives`
+    /// beside the `var`.
+    ///
+    /// `@abstract` is the exception. It reads as a modifier rather than as a
+    /// declaration about the one below it, and both the style guide's
+    /// `@abstract class MyNode extends Node:` and the language reference's
+    /// `@abstract func draw()` write it inline.
     fn attached_annotations(&self, node: SyntaxNode<'a>) -> Doc {
         let annotations: Vec<SyntaxNode<'a>> = node
             .child_nodes()
@@ -262,6 +269,8 @@ impl<'a> Lowerer<'a> {
                 }
             }
             parts.push(self.annotation(*annotation));
+            let own_line =
+                node.kind() == FuncDecl && self.annotation_name(*annotation) != "abstract";
             match self.trailing_comment_of(last_significant(*annotation)) {
                 // `@onready # why` has to end its line, so the declaration it
                 // modifies moves to the next one.
@@ -269,6 +278,7 @@ impl<'a> Lowerer<'a> {
                     parts.push(comment);
                     parts.push(Doc::hard_line());
                 }
+                None if own_line => parts.push(Doc::hard_line()),
                 None => parts.push(Doc::text(" ")),
             }
         }
@@ -290,12 +300,15 @@ impl<'a> Lowerer<'a> {
         Doc::concat(parts)
     }
 
-    fn annotation(&self, node: SyntaxNode<'a>) -> Doc {
-        let tokens = tokens(node);
-        let name = tokens
+    fn annotation_name(&self, node: SyntaxNode<'a>) -> &'a str {
+        tokens(node)
             .iter()
             .find(|token| token.kind.is_ident_like())
-            .map_or("", |token| self.text(*token));
+            .map_or("", |token| self.text(*token))
+    }
+
+    fn annotation(&self, node: SyntaxNode<'a>) -> Doc {
+        let name = self.annotation_name(node);
         let mut parts = vec![Doc::text(format!("@{name}"))];
         if let Some(args) = node.child_node_of(ArgList) {
             parts.push(self.arg_list(args));

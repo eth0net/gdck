@@ -11,7 +11,7 @@ accident.
 | `gdck-syntax` | Lexer, lossless CST, parser. No knowledge of formatting or rules. |
 | `gdck-config` | Configuration types, defaults, file discovery. Dependency-free. |
 | `gdck-format` | Tree → formatted text. |
-| `gdck-lint` | Tree → diagnostics, some carrying fixes. |
+| `gdck-lint` | Tree → diagnostics, some carrying fixes. Uses `gdck-format` for literal rewrites. |
 | `gdck-cli` | The `gdck` binary. Argument parsing, file walking, reporting. |
 
 The split exists so `gdck-syntax` can be published and depended on by itself. A
@@ -271,36 +271,92 @@ is also the last token of the block, of the function holding it, and of every
 construct up to the file, so emitted anchors are tracked to stop each of them
 emitting it again.
 
-## Planned: the linter
+## The linter
 
-Rules are visitors over the CST run in a single pass, each producing a
-diagnostic with a byte range and optionally an edit. `--fix` applies
-non-overlapping edits back to front so earlier offsets stay valid.
+The rule catalogue lives in `crates/gdck-lint/src/lib.rs` as `RULES` and is
+documented for users in [RULES.md](RULES.md). A test fails if the two disagree.
 
-Suppression reuses the comment syntax GDScript projects already have:
-`# gdlint: ignore=rule-name` for one line, `# gdlint: disable=rule-name` and
-`enable=` for a region.
+### Grouped walks, not one pass
 
-The rule catalogue lives in `crates/gdck-lint/src/lib.rs` as `PLANNED_RULES`.
+Each group of rules walks the parts of the tree it cares about. A single
+dispatching traversal would save a few microseconds on a file of a thousand
+lines and would couple every rule to one match statement; a group as it stands
+can be read, tested and changed without knowing what the others match on.
+
+### Fixes
+
+A diagnostic carries a `Fix` of one or more `Edit`s, applied back to front so
+that offsets computed against the original text stay valid. Overlap is judged
+edit by edit rather than over the span a fix covers: dropping the parentheses
+from `if (!a):` is two deletions with the `!` between them, and rewriting that
+`!` in the same pass is not a conflict.
+
+`fix_source` re-lints and applies again until nothing changes, because a fix
+deferred for overlapping another is picked up next time round. If a pass ever
+makes a file that parsed stop parsing, the result is discarded.
+
+### Where the formatter is the authority
+
+`quote-style` and `number-format` call `gdck_format::literal` for their
+rewrites. Two implementations would eventually disagree, and that would show up
+as `gdck lint --fix` producing something `gdck format` then changed again.
+
+This is why `gdck-lint` depends on `gdck-format`, which the crate table above
+does not otherwise imply.
+
+### Telling a comment from disabled code
+
+The guide asks for a space after the hash, "but not code that you comment out",
+which is a distinction of intent rather than of syntax. `comment-space` resolves
+it by asking whether the text after the hash *is* GDScript — this project has a
+parser, and it is tried both at class level and inside a function body, since
+`const X = 1` is only legal in one and `return null` only in the other.
+
+Parsing alone is too generous, since a single English word parses as an
+expression, so the text must also look like code: hold a bracket or an `=`, or
+open with a keyword. The bias is deliberate — reporting a comment that was
+disabled code would be telling the author to break the thing the guide asked
+them to do.
+
+### Suppression
+
+Reuses the comment syntax GDScript projects already have: `# gdlint: ignore=`
+for one line and the one below it, `# gdlint: disable=` / `enable=` for a
+region, with `gdtoolkit`'s exact semantics. Directives are read from the comment
+*tokens* in the tree rather than by scanning lines, so a `#` inside a string
+literal cannot be mistaken for one.
 
 ### Code order
 
 The analysis behind the all-or-nothing policy is in the
 [README](../README.md#code-order-is-fixed-for-a-whole-file-or-not-at-all).
-Implementation notes:
 
-- Build the target order from the style guide's sequence, keeping declarations
-  within a bucket in their original relative order.
-- Build dependency edges between class-level variables. A direct reference to
-  another member is a precise edge. Anything opaque — a call to a file-local
-  function, `self`, a subscript of something unknown — conservatively depends on
-  every member declared above it.
-- If the target order violates no edge, rewrite the file's order. Otherwise
-  leave it untouched and report, naming the declaration that blocked it.
+A reorder is a **permutation of the source**, not a re-rendering of it. The
+members of a class body are cut into chunks that tile the region between the
+first and last of them exactly, and the chunks are reordered. A declaration
+therefore takes its comments, its annotations and the blank lines above it
+wherever it goes, byte for byte, and nothing can be dropped. A corpus test
+asserts that the bytes coming out are the bytes that went in.
+
+That also sets the limits. A body is refused when two declarations share a line,
+or when it holds something the order has no place for, because neither can be
+moved without rewriting rather than permuting.
+
+Dependency edges are built between class-level variables only. Constants and
+enums are resolved when the script is compiled, and signals and functions are
+declarations rather than steps, so none of them carry order. An initialiser is
+treated as reading every variable above it when it touches `self`, `super`, a
+`$` or `%` node path, a property setter, or calls a function defined in this
+file. Otherwise its dependencies are exactly the member names it mentions — so
+`Vector2(0, 0)` is self-contained, since a constructor defined elsewhere cannot
+see members that have not been set.
 
 The over-approximation is the point. Precise interprocedural analysis would be
 needed to know whether `var total := _compute()` reads `_base` inside
 `_compute`, and being wrong there breaks a game at runtime with no error.
+
+One class body is rewritten per pass, with a re-parse between them, because
+rewriting an inner class moves every offset computed for the file around it.
 
 ## Planned: configuration
 

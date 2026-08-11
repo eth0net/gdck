@@ -4,9 +4,9 @@ A fast GDScript formatter and linter, faithful to the [official GDScript style
 guide][styleguide].
 
 > [!WARNING]
-> **Work in progress.** The parser and formatter are done and tested; the
-> linter is not written yet. `gdck parse` and `gdck format` work today.
-> See [Status](#status).
+> **Work in progress.** The parser, formatter and linter are done and tested,
+> and every subcommand works. Configuration files are not read yet, so every
+> run uses style-guide defaults. See [Status](#status).
 
 `gdck` is a ground-up reimplementation of [`godot-gdscript-toolkit`][gdtoolkit]
 in Rust. It is designed to install alongside the original rather than replace it
@@ -34,9 +34,10 @@ verify it by default. Measured on an M-series Mac, averaged over 10 runs
 (`gdck`) and 3 (`gdformat`); reproduce with the corpus described below.
 
 **Style-guide fidelity.** The style guide says more than `gdtoolkit` enforces —
-notably [code order][order], quote style, number formatting, and when to use
-`:=` against an explicit type. `gdck` aims to cover the guide, and to auto-fix
-what can be fixed safely.
+notably [code order][order], quote style, number formatting, comment spacing,
+and when to use `:=` against an explicit type. `gdck` covers the guide, and
+auto-fixes what can be fixed safely. The rule catalogue is in
+[docs/RULES.md](docs/RULES.md).
 
 **A reusable parser.** [`gdck-syntax`](crates/gdck-syntax) is a standalone
 lossless GDScript parser. Editors, doc generators and static analysers need one
@@ -126,7 +127,32 @@ blocks a file that would have been fine, but it cannot be wrong in the direction
 that breaks your game. Signals, enums, constants and functions carry no ordering
 semantics at all, so files needing only those moved always sort cleanly.
 
+What a reorder produces is a *permutation of the source* — the same bytes in a
+different order — rather than a re-rendering of it. A declaration therefore
+takes its comments and annotations with it exactly as written, and nothing can
+be lost on the way. Its blank lines travel with it too, which the formatter then
+settles; `gdck fix --fix-order` runs both.
+
 Reordering is opt-in (`--fix-order`) until the analysis has more mileage.
+
+### The linter agrees with `gdtoolkit` where it should
+
+Existing GDScript projects have already triaged `gdlint`'s findings, so a
+reimplementation that quietly widened a rule would present old code as newly
+broken. Over `gdtoolkit`'s own test corpus the two agree exactly on
+`unused-argument` (270 findings), `constant-name`, `trailing-whitespace`,
+`function-name`, `enum-member-name`, `argument-name`, `enum-name` and
+`max-arguments`.
+
+Where they differ, they differ on purpose, and
+[docs/RULES.md](docs/RULES.md#differences-from-gdtoolkit) says why. The shortest
+version: `gdck` measures line length in columns rather than characters, so a
+tab-indented line counts the same to the linter as to the formatter; it reports
+a `pass` beside a `func` that `gdlint`'s statement test does not see; and it
+checks a good deal more of the guide's declaration order.
+
+`gdtoolkit`'s rule names are accepted as aliases everywhere a rule is named, so
+an existing `gdlintrc` and existing `# gdlint: ignore=` comments keep working.
 
 ### Formatting you asked for is formatting you keep
 
@@ -172,9 +198,8 @@ it merely failed to understand.
 | `gdck-syntax` — parser | Done. Full declaration and expression grammar, error recovery |
 | `gdck-config` | Types and file discovery done; reading `gdck.toml` not wired up |
 | `gdck-format` | Done. Wadler pretty printer with safety checks |
-| `gdck-lint` | Not started. Rule catalogue in the crate docs |
-| `gdck parse` / `gdck format` | Work |
-| `gdck check` / `fix` / `lint` | Interface defined, exits 2 |
+| `gdck-lint` | Done. 33 rules, 10 of them fixable. See [docs/RULES.md](docs/RULES.md) |
+| Every subcommand | Works |
 
 The parser handles every file in `gdtoolkit`'s corpus of valid GDScript — 324
 files across its parser, formatter and `gd2py` test suites — and round-trips all
@@ -188,9 +213,21 @@ directly, so the guide decides what correct output is. See
 for the classification of every sample, including the three the formatter
 knowingly does not reproduce and why.
 
+The linter is held to the same corpus, on what it must never do rather than on
+what it finds: `--fix` never turns a file that parsed into one that does not,
+settles after one more pass, and never introduces a kind of problem the file did
+not already have. `--fix-order` only ever permutes a file's bytes.
+
 ### Known gaps
 
 - Configuration files are not read yet; every run uses style-guide defaults.
+- `code-order` cannot tell an overridden virtual method from a custom one, since
+  that needs the whole inheritance chain. It orders the callbacks the guide names
+  and leaves the rest as one group, rather than guessing. See
+  [docs/RULES.md](docs/RULES.md#what-code-order-does-and-does-not-check).
+- Naming rules never offer a rename. A name is reached from scene files, from
+  `call()` with a string, and from signals connected in the editor, none of which
+  one file can see.
 - CRLF and CR line endings are rewritten to LF, which the style guide mandates.
   There is no option to keep them.
 - The formatter does not fill lines. Where the style guide hand-wraps a call or
@@ -228,7 +265,14 @@ GDCK_CORPUS=../godot-gdscript-toolkit/tests \
   cargo test -p gdck-format --test corpus -- --nocapture
 ```
 
-Both are skipped when the variable is unset.
+And so does the linter:
+
+```sh
+GDCK_CORPUS=../godot-gdscript-toolkit/tests \
+  cargo test -p gdck-lint --test corpus -- --nocapture
+```
+
+All three are skipped when the variable is unset.
 
 The style-guide fixtures are regenerated from a checkout of the documentation:
 

@@ -150,6 +150,7 @@ name = "gdck-lint"
 version = "0.1.0"
 dependencies = [
  "gdck-config",
+ "gdck-format",
  "gdck-syntax",
 ]
 

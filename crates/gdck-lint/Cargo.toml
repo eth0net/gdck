@@ -1,6 +1,6 @@
 [package]
 name = "gdck-lint"
-description = "GDScript linter (in development)"
+description = "GDScript linter following the official style guide"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,10 @@ authors.workspace = true
 
 [dependencies]
 gdck-config.workspace = true
+# For literal normalisation. A rule that reports a badly spelled string or
+# number offers the formatter's own rewrite as its fix, so the two cannot drift
+# into disagreeing about what the right spelling is.
+gdck-format.workspace = true
 gdck-syntax.workspace = true
 
 [lints]

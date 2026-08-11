@@ -47,7 +47,7 @@ jobs:
       - run: cargo check --workspace
 
   corpus:
-    name: parser conformance
+    name: corpus conformance
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,3 +70,9 @@ jobs:
         env:
           GDCK_CORPUS: corpus/tests
         run: cargo test -p gdck-format --test corpus -- --nocapture
+      # And the linter's fixes have to leave every one of them parseable,
+      # settled, and no worse than they found it.
+      - name: Lint the corpus
+        env:
+          GDCK_CORPUS: corpus/tests
+        run: cargo test -p gdck-lint --test corpus -- --nocapture
