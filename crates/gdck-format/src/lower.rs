@@ -16,7 +16,6 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
 
-use gdck_config::FormatConfig;
 #[allow(clippy::enum_glob_use)]
 use gdck_syntax::SyntaxKind::*;
 use gdck_syntax::{SyntaxKind, SyntaxNode, SyntaxTree, Token};
@@ -48,11 +47,15 @@ enum Scope {
     Function,
 }
 
+/// Lowers a syntax tree to a [`Doc`].
+///
+/// Deliberately unaware of the format settings: lowering says where a break
+/// *may* go, and rendering decides which ones are taken, from the line length
+/// and the indent style. Keeping the settings out of here is what stops a
+/// width-dependent decision from being baked into the document.
 pub(crate) struct Lowerer<'a> {
     tree: &'a SyntaxTree,
     trivia: &'a Trivia,
-    #[allow(dead_code)]
-    config: &'a FormatConfig,
     /// Trailing comments already emitted, by anchor offset.
     ///
     /// A comment on the last line of a block is anchored on a token that is
@@ -63,11 +66,10 @@ pub(crate) struct Lowerer<'a> {
 }
 
 impl<'a> Lowerer<'a> {
-    pub(crate) fn new(tree: &'a SyntaxTree, trivia: &'a Trivia, config: &'a FormatConfig) -> Self {
+    pub(crate) fn new(tree: &'a SyntaxTree, trivia: &'a Trivia) -> Self {
         Self {
             tree,
             trivia,
-            config,
             emitted_trailing: RefCell::new(HashSet::new()),
         }
     }

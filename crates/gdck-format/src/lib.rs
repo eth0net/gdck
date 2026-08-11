@@ -117,7 +117,7 @@ pub fn format_source(source: &str, config: &FormatConfig) -> Result<String, Form
 
 fn render(tree: &SyntaxTree, config: &FormatConfig) -> String {
     let trivia = Trivia::collect(tree);
-    let lowerer = Lowerer::new(tree, &trivia, config);
+    let lowerer = Lowerer::new(tree, &trivia);
     let document = lowerer.source_file(tree.root());
     let mut output = doc::render(&document, config.line_length as usize, config.indent);
 
