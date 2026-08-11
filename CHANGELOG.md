@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `gdck-config`: configuration files are read, and `gdck config` prints the
+  settings a run would use.
+  - `gdck.toml` or `.gdck.toml`, found by walking up from the directory the
+    given paths have in common. Every setting is documented in
+    [docs/CONFIG.md](docs/CONFIG.md).
+  - `gdformatrc` and `gdlintrc` are read when there is no `gdck.toml`, so a
+    project already set up for `gdtoolkit` keeps its line length, its
+    thresholds and its disabled rules without writing anything new. What
+    `gdck` cannot honour — a customised naming pattern, a reordered
+    `class-definitions-order` — is reported rather than silently dropped.
+  - `--config` to name a file and `--no-config` to ignore all of them.
+  - `gdck.toml` is deserialised by `toml` and `serde`, with validation above
+    it for what a type cannot say: ranges, and settings that only mean
+    something alongside another. An unknown key is an error naming the nearest
+    key that exists, including when the mistake was the right key under the
+    wrong table. The `gdtoolkit` files are read here, since `serde_yaml` is
+    deprecated and those files want reading a setting at a time anyway.
+  - Setting `format.line-length` moves `lint.max-line-length` with it unless
+    that is set too, so the linter cannot report the lines the formatter just
+    produced.
 - `gdck-lint`: a working linter, and `gdck lint`, `gdck check` and `gdck fix`.
   - 33 rules covering the style guide's naming conventions, its formatting
     rules, and the declaration order it prescribes; the design thresholds

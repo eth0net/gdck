@@ -9,7 +9,7 @@ accident.
 | Crate | Responsibility |
 |---|---|
 | `gdck-syntax` | Lexer, lossless CST, parser. No knowledge of formatting or rules. |
-| `gdck-config` | Configuration types, defaults, file discovery. Dependency-free. |
+| `gdck-config` | Configuration types, defaults, and reading `gdck.toml`. |
 | `gdck-format` | Tree → formatted text. |
 | `gdck-lint` | Tree → diagnostics, some carrying fixes. Uses `gdck-format` for literal rewrites. |
 | `gdck-cli` | The `gdck` binary. Argument parsing, file walking, reporting. |
@@ -18,9 +18,24 @@ The split exists so `gdck-syntax` can be published and depended on by itself. A
 fast GDScript parser is useful to editors, documentation generators and static
 analysers, none of which want a linter attached.
 
-`gdck-config` deliberately has no dependencies. It holds the naming patterns and
-thresholds that both `gdck-format` and `gdck-lint` need, and keeping it inert
-means neither picks up a serialisation stack it does not use.
+`gdck-config` sits underneath both `gdck-format` and `gdck-lint` because both
+need the same thresholds, and neither should have to ask the other for them.
+
+## Dependencies
+
+The deliverable is a single self-contained binary — no interpreter, no runtime,
+nothing to install alongside it. That is the reason the project is in Rust at
+all, and it is a statement about what ships, not about what builds.
+
+Build-time crates are chosen on merit, and a proven one is preferred to an
+imitation of it every time. `gdck.toml` is read by `toml`, which is what Cargo
+parses manifests with; the alternative was several hundred lines of parser to
+maintain, and a subtly wrong TOML reader is worse than no TOML at all.
+
+Something is written here only when there is a reason beyond the dependency
+itself — no crate does the job, or the job is small and specific enough that a
+general one would have to be bent to fit. Each of those is argued where it
+lives rather than assumed from a blanket rule.
 
 ## The syntax tree
 
@@ -358,26 +373,64 @@ needed to know whether `var total := _compute()` reads `_base` inside
 One class body is rewritten per pass, with a re-parse between them, because
 rewriting an inner class moves every offset computed for the file around it.
 
-## Planned: configuration
+## Configuration
 
-`gdck.toml` or `.gdck.toml`, discovered by walking up from the working
-directory. Sketch:
+The schema and the precedence are documented for users in [CONFIG.md](CONFIG.md).
+What is worth recording here is why the crate reads its own files.
 
-```toml
-[format]
-line-length = 100
-indent = "tabs"      # or { spaces = 4 }
-safety-checks = true
+### Two formats, two readers
 
-[lint]
-max-line-length = 100
-max-file-lines = 1000
-code-order = "report"   # "report" | "fix-when-safe" | "off"
-disable = ["max-returns"]
+`gdck.toml` is deserialised by `toml` and `serde`, into structs whose every
+field is optional so that a setting left out stays distinguishable from one
+written at its default. Values are `Spanned`, which is what lets a setting that
+parsed but will not do — an `indent-width` alongside `indent = "tabs"` — be
+reported at the line it is on rather than at the top of the file. Validation
+above the deserialiser covers what a type cannot say: ranges, and settings that
+only mean something alongside another.
 
-[files]
-exclude = [".git", ".godot", ".import", "addons"]
-```
+The `gdtoolkit` files are YAML, where there is no equivalent crate to reach for:
+`serde_yaml` is deprecated, and its successors are young. They also want reading
+in a shape `serde` is not built for. A `gdlintrc` legitimately holds dozens of
+settings `gdck` has no equivalent for, and the right response to each is to skip
+that one with a note rather than to fail the file — so a `Deserialize` struct
+would have to become a map of untyped values and be matched over by hand anyway.
+What `compat.rs` reads is the handful of shapes those files actually take:
+`key: value`, block and flow sequences, and the `!!set` mapping `yaml.dump`
+writes for `excluded_directories`.
 
-A compatibility shim for `gdlintrc` and `gdformatrc` is worth having so existing
-projects work unchanged, but `gdck.toml` should win where both are present.
+Nothing in a `gdtoolkit` file is fatal, which is the opposite of the rule for
+`gdck.toml`. What it must not do is *silently* drop something, so anything
+ignored comes back as a note the CLI prints before the run.
+
+### Strict about its own keys
+
+An unknown key in `gdck.toml` is an error, and the message names the nearest key
+that exists. A misspelled setting that does nothing is the classic way to spend
+an afternoon wondering why a threshold had no effect, and the whole schema is
+twelve keys — there is no version-skew argument for tolerating one that is not
+among them.
+
+The exception is a `disable` entry naming a rule that does not exist, which is a
+warning. That list is shared with `gdlint`, whose rule set is not the same, and
+a rule that does not exist here is already off.
+
+### One configuration per run
+
+Found by walking up from the directory the command-line paths have in common,
+rather than per file. Per-file resolution is what `ruff` and `rustfmt` do and it
+is better in a monorepo, but it means a config cache and a config argument
+threaded through every subcommand, for a case a second invocation already
+covers. The limitation is documented rather than hidden.
+
+A `gdck.toml` wins outright over the `gdtoolkit` files rather than merging with
+them key by key. Merging would make the effective settings a function of two
+files that were written years apart by people solving different problems, and
+`gdck config` exists precisely because that question should have a short answer.
+
+### The linter and the formatter cannot disagree about width
+
+Setting `format.line-length` moves `lint.max-line-length` with it unless that
+one is set too. Left independent, the common case — a project that wants 120
+columns — produces a linter reporting exactly the lines the formatter just
+made. The same rule applies when the width comes from a `gdformatrc`, which has
+nowhere to say otherwise.
