@@ -12,7 +12,7 @@ accident.
 | `gdck-config` | Configuration types, defaults, and reading `gdck.toml`. |
 | `gdck-format` | Tree → formatted text. |
 | `gdck-lint` | Tree → diagnostics, some carrying fixes. Uses `gdck-format` for literal rewrites. |
-| `gdck-cli` | The `gdck` binary. Argument parsing, file walking, reporting. |
+| `gdck` | The `gdck` binary. Argument parsing, file walking, reporting. |
 
 The split exists so `gdck-syntax` can be published and depended on by itself. A
 fast GDScript parser is useful to editors, documentation generators and static

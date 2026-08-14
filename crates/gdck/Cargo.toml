@@ -1,10 +1,12 @@
 [package]
-name = "gdck-cli"
+name = "gdck"
 description = "A fast GDScript formatter and linter"
 keywords = ["godot", "gdscript", "formatter", "linter"]
 categories = ["command-line-utilities", "development-tools"]
 readme = "../../README.md"
 version.workspace = true
+# The binary. `cargo install gdck` is the reason any of this is published.
+publish = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
