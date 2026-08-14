@@ -714,6 +714,17 @@ impl<'a> Lowerer<'a> {
             forced = true;
         }
 
+        // A lambda body is the one place inside brackets where Godot still
+        // tracks indentation, and it stops doing so again at whatever ends the
+        // lambda. A trailing comma ends it on the body's own last line; without
+        // one, the closing bracket's line is the first line after the body, and
+        // Godot requires that line to sit at the enclosing statement's indent
+        // rather than at a continuation's. Rather than special-case the
+        // closer's indentation, end the lambda where a collection already
+        // would — with a comma.
+        let trailing_comma =
+            style.trailing_comma || items.last().is_some_and(|item| breaking_lambda(*item));
+
         let count = items.len();
         for (index, (item, doc)) in items.iter().zip(docs).enumerate() {
             // The separator comes first, then any comments on their own lines,
@@ -735,7 +746,7 @@ impl<'a> Lowerer<'a> {
 
             let last = index + 1 == count;
             if last {
-                if style.trailing_comma {
+                if trailing_comma {
                     body.push(Doc::if_break(Doc::text(","), Doc::nil()));
                 }
             } else {
@@ -1543,6 +1554,22 @@ enum ChainOp<'a> {
     Attr(String),
     Call(SyntaxNode<'a>),
     Index(SyntaxNode<'a>),
+}
+
+/// Whether this expression is a lambda that [`Lowerer::lambda_expr`] will
+/// render as an indented block rather than on one line.
+///
+/// The two have to agree: a comma is emitted for exactly the shape that puts a
+/// block in the middle of a bracketed construct.
+fn breaking_lambda(node: SyntaxNode<'_>) -> bool {
+    if node.kind() != LambdaExpr {
+        return false;
+    }
+    let Some(block) = node.child_node_of(Block) else {
+        return false;
+    };
+    let inline = !block.child_tokens().any(|token| token.kind == Indent);
+    !(inline && child_nodes(block).len() == 1)
 }
 
 /// How many `.name` steps a chain has, which is how many break points it
