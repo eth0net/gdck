@@ -1096,6 +1096,17 @@ impl<'a> Lowerer<'a> {
                     return Doc::text("()");
                 };
                 let body = self.chain_parts(inner).unwrap_or_else(|| self.expr(inner));
+                // Parentheses around a lambda block have to close on the
+                // body's own last line. Godot goes back to ignoring
+                // indentation at whatever ends the lambda, and until then a
+                // dedent has to land on one of the enclosing statement's
+                // levels — which a continuation indent is not. Here the
+                // closing paren is what ends it, so it cannot be given a line
+                // of its own; an argument list ends it with a comma instead,
+                // in `collection`.
+                if breaking_lambda(inner) {
+                    return Doc::concat(vec![Doc::text("("), body, Doc::text(")")]);
+                }
                 Doc::group(Doc::concat(vec![
                     Doc::text("("),
                     if self.expanded(node) {

@@ -514,6 +514,38 @@ mod tests {
         check_stable("func f():\n\tbutton.pressed.connect(func(): do_something())\n");
     }
 
+    /// Parentheses around a lambda block close on the body's last line, for the
+    /// same reason the comma above exists: what ends the lambda has to sit
+    /// there, because Godot is still tracking indentation until it does and a
+    /// closing paren on its own line would dedent to a continuation's level
+    /// rather than the statement's.
+    #[test]
+    fn parens_around_a_lambda_block_close_on_its_last_line() {
+        // A lambda block opens the call out however short it is, so the paren
+        // is always the last thing on the body's line rather than the first on
+        // the next one.
+        check(
+            "func f():\n\tassert((func() -> bool:\n\t\treturn check_something_here()).call())\n",
+            "func f():\n\
+             \tassert(\n\
+             \t\t\t(func() -> bool:\n\
+             \t\t\t\treturn check_something_here()).call()\n\
+             \t)\n",
+        );
+        check(
+            "func f():\n\
+             \tassert((func() -> bool:\n\
+             \t\tvar ok: bool = probe_the_thing_for_a_while(argument_one, argument_two)\n\
+             \t\treturn ok).call())\n",
+            "func f():\n\
+             \tassert(\n\
+             \t\t\t(func() -> bool:\n\
+             \t\t\t\tvar ok: bool = probe_the_thing_for_a_while(argument_one, argument_two)\n\
+             \t\t\t\treturn ok).call()\n\
+             \t)\n",
+        );
+    }
+
     #[test]
     fn accessors_keep_the_form_they_were_written_in() {
         check_stable("var health = max_health:\n\tset(new_health):\n\t\thealth = new_health\n");
