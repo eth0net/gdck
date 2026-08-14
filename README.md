@@ -271,6 +271,11 @@ not already have. `--fix-order` only ever permutes a file's bytes.
   a boolean chain several items per line, `gdck` puts one per line. Both of the
   guide's samples of that are hand-formatted rather than derived from a column
   limit, so no deterministic rule reproduces them.
+- The guide calls itself advice rather than a rulebook, and `gdck` turns it into
+  exit codes. Everywhere that needed a decision the guide did not make — a
+  trailing comma Godot requires, an order it stopped asking for, a length
+  measured in columns — is listed in
+  [docs/DESIGN.md](docs/DESIGN.md#known-differences-from-the-guide).
 - No `.gitignore` awareness when walking directories; only a fixed exclusion
   list (`.git`, `.godot`, `.import`, `addons`).
 - The parser is more permissive than Godot in places. It is built to understand

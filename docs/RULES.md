@@ -148,7 +148,10 @@ a function is misplaced on a guess about what it overrides.
 
 Public-before-private is applied to variables, where it is unambiguous, and not
 to methods, where it would contradict the rule above it: a virtual callback is
-private by name and still comes first.
+private by name and still comes first. The guide itself asked for public before
+private until 4.4, which merged both into one group; `gdck` keeping the older
+order for variables is one of the departures listed in
+[DESIGN.md](DESIGN.md#known-differences-from-the-guide).
 
 Reordering is opt-in and all-or-nothing per file. See
 [Code order](../README.md#code-order-is-fixed-for-a-whole-file-or-not-at-all).

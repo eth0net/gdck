@@ -274,13 +274,60 @@ that reading the prose did not:
 
 ### Known differences from the guide
 
-Three samples are not reproducible by any deterministic rule, because they are
-hand-formatted rather than derived from the column limit: two wrap a call by
-filling several arguments per line, and one wraps a boolean chain two
-comparisons per line. In each case the guide's break points do not match where a
-real fill at 100 columns would land. `gdck` puts one item per line, which is
-deterministic and produces better diffs. They are listed as exceptions in the
-conformance test so the deviation cannot become accidental.
+The guide describes itself as advice: "Style guides aren't meant as hard
+rulebooks", and keeping a project consistent matters more than "following this
+guide to a tee". `gdck` turns that advice into exit codes, and that conversion
+needs decisions the guide did not make. They are collected here so that adopting
+`gdck` is an informed choice, and so that changing one is deliberate.
+
+They are not all the same kind of thing, and the difference matters.
+
+**Godot requires it and the guide is silent.** Not style. The alternative does
+not compile.
+
+- A breaking argument list whose last item is a lambda block gains a trailing
+  comma. The guide scopes trailing commas to "arrays, dictionaries, and enums",
+  so an argument list is outside what it describes at all. Godot goes back to
+  ignoring a lambda's indentation at whatever ends the lambda, and until then a
+  dedent has to land on one of the enclosing statement's own levels — where the
+  closing bracket of a wrapped call does not sit. The comma ends the lambda on
+  the body's last line, leaving no line to measure. `gdck` emits it whenever
+  such a list breaks, rather than only where the nesting would otherwise fail,
+  so that whether the output compiles does not depend on how deeply the call
+  happens to be nested.
+- Parentheses around a lambda block close on the body's last line, for the same
+  reason and because nothing else is available to end that lambda. Putting the
+  closer at the enclosing statement's own indent is equally valid GDScript and
+  was the other candidate; it would need the renderer to anchor a line to
+  something other than the current indent, which nothing else in the formatter
+  does.
+
+**Stricter than the guide asks.**
+
+- Public variables come before private ones. The guide said so until 4.4, which
+  merged the two into "remaining regular variables" and stopped having an
+  opinion. `gdck` kept the older, narrower order for variables. It applies
+  nothing of the kind to methods, where it would contradict the virtual-callback
+  order above it — see [RULES.md](RULES.md#what-code-order-does-and-does-not-check).
+- Wrapping puts one item per line. Three of the guide's samples are not
+  reproducible by any deterministic rule, being hand-formatted rather than
+  derived from the column limit: two wrap a call by filling several arguments
+  per line, and one wraps a boolean chain two comparisons per line. In each case
+  the break points do not match where a real fill at 100 columns would land. One
+  item per line is deterministic and diffs better. The three are listed as
+  exceptions in the conformance test so the deviation cannot become accidental.
+
+**Measured differently.**
+
+- Line length is counted in columns with a tab worth four, where the guide says
+  "characters". A tab-indented line therefore counts the same to the linter as
+  it does to the formatter. `gdtoolkit` counts characters, which is why it
+  reports fewer.
+
+**Read out of the guide's examples where its prose does not say.** These are
+readings rather than departures, but they are still choices, and extracting the
+samples as fixtures is what settled them. They are listed under [Where the guide
+is the specification](#where-the-guide-is-the-specification) above.
 
 ### Comments
 
