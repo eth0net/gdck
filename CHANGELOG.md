@@ -103,6 +103,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   statement's indent — which the closing brackets of a wrapped call do not. A
   trailing comma ends the lambda on the body's own last line, so no line is
   left to check; collections already emitted one and argument lists now do too.
+- `gdck-format`: parentheses around a multi-line lambda were closed on a line
+  of their own, so `assert((func() -> bool: ...).call())` came back as
+  something Godot rejects with "Unindent doesn't match the previous
+  indentation level". Until a lambda ends, a dedent has to land on one of the
+  enclosing statement's own indentation levels, and a continuation's is not one
+  of them. The closing parenthesis is what ends this lambda, so it now stays on
+  the body's last line — the same shape the comma gives an argument list.
 - `gdck-format`: a property whose accessors are both set to methods lost the
   comma between them, so `var p:\n\tset = __set,\n\tget = __get` came back
   without one and Godot rejected it with "Expected end of indented block for

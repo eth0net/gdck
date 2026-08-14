@@ -58,6 +58,15 @@ const CASES: &[(&str, &str)] = &[
          \tprint(callables.size())\n",
     ),
     (
+        "lambda inside a parenthesised expression",
+        // Nothing here can end the lambda but the closing paren itself, so it
+        // has to stay on the body's last line.
+        "extends Node\n\n\nfunc _ready() -> void:\n\
+         \tassert((func() -> bool:\n\
+         \t\tvar ok := 1 + 1 == 2\n\
+         \t\treturn ok).call())\n",
+    ),
+    (
         "property with both accessors set to methods",
         // The comma is what carries Godot on to the second accessor; without
         // it the property is over and the `get` line has nowhere to belong.
