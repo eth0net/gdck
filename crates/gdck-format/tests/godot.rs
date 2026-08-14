@@ -6,7 +6,7 @@
 //! can. This closes that gap by asking Godot itself.
 //!
 //! ```sh
-//! GDCK_GODOT="/Applications/Godot.app/Contents/MacOS/Godot" \
+//! GDCK_GODOT="/Applications/Godot 4.7.1.app/Contents/MacOS/Godot" \
 //!   GDCK_CORPUS=../godot-gdscript-toolkit/tests \
 //!   cargo test -p gdck-format --test godot -- --nocapture
 //! ```
@@ -58,6 +58,23 @@ const CASES: &[(&str, &str)] = &[
          \tprint(callables.size())\n",
     ),
     (
+        "property with both accessors set to methods",
+        // The comma is what carries Godot on to the second accessor; without
+        // it the property is over and the `get` line has nowhere to belong.
+        "extends Node\n\nvar _p := 0\n\nvar p:\n\
+         \tset = __set,\n\
+         \tget = __get\n\n\n\
+         func __get() -> int:\n\treturn _p\n\n\n\
+         func __set(value: int) -> void:\n\t_p = value\n",
+    ),
+    (
+        "property with both accessors written as blocks",
+        // The same construct in the form that takes no comma at all.
+        "extends Node\n\nvar _p := 0\n\nvar p:\n\
+         \tset(value):\n\t\t_p = value\n\
+         \tget:\n\t\treturn _p\n",
+    ),
+    (
         "lambda followed by another argument",
         "extends Node\n\n\nfunc _ready() -> void:\n\
          \tvar t := Timer.new()\n\
@@ -66,8 +83,20 @@ const CASES: &[(&str, &str)] = &[
     ),
 ];
 
+/// The Godot binary to compare against, if one was named.
+///
+/// A `GDCK_GODOT` that points at nothing is a mistake worth stopping for: the
+/// alternative is a run that looks like it checked something and did not.
+/// Not setting it at all is the documented way to skip.
 fn godot() -> Option<PathBuf> {
-    std::env::var("GDCK_GODOT").ok().map(PathBuf::from)
+    let raw = std::env::var("GDCK_GODOT").ok()?;
+    let path = PathBuf::from(&raw);
+    assert!(
+        path.is_file(),
+        "GDCK_GODOT is set to {raw:?}, which is not a file. Point it at a Godot \
+         binary, or unset it to skip this test."
+    );
+    Some(path)
 }
 
 fn resolve_from_workspace_root(raw: &str) -> PathBuf {

@@ -103,6 +103,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   statement's indent — which the closing brackets of a wrapped call do not. A
   trailing comma ends the lambda on the body's own last line, so no line is
   left to check; collections already emitted one and argument lists now do too.
+- `gdck-format`: a property whose accessors are both set to methods lost the
+  comma between them, so `var p:\n\tset = __set,\n\tget = __get` came back
+  without one and Godot rejected it with "Expected end of indented block for
+  property". Godot has two property forms and decides which it is reading from
+  the first accessor: the comma is what carries it on to the second, and only
+  that form has one. Accessors written as blocks are still separated by nothing
+  but a newline, since a comma there is a syntax error rather than a redundancy.
 
 ### Changed
 
