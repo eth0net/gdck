@@ -465,16 +465,31 @@ impl<'a> Lowerer<'a> {
         // stays one, and `set = f, get = g` stays on the line.
         let block_form = node.child_tokens().any(|token| token.kind == Indent);
 
+        // Godot has two property forms and decides which one this is from the
+        // first accessor alone: `= method` makes it the setget form, anything
+        // else the inline-block form. Only the setget form is comma-separated,
+        // and there the comma is what lets the parser go on to the second
+        // accessor at all — without it the block is over, and the second is
+        // rejected with "Expected end of indented block for property". A
+        // block-bodied accessor takes none, since nothing ever looks for one.
+        let setget = clauses
+            .first()
+            .is_some_and(|clause| clause.child_node_of(Block).is_none());
+
         if block_form {
             let mut parts = vec![Doc::text(":"), self.colon_comment(node)];
             let mut inner = Vec::new();
-            for clause in &clauses {
+            let count = clauses.len();
+            for (index, clause) in clauses.iter().enumerate() {
                 for comment in self.leading_comments_of(*clause) {
                     inner.push(Doc::hard_line());
                     inner.push(Doc::text(comment));
                 }
                 inner.push(Doc::hard_line());
                 inner.push(self.accessor(*clause));
+                if setget && index + 1 < count {
+                    inner.push(Doc::text(","));
+                }
                 inner.push(self.trailing_comment(last_significant(*clause)));
             }
             parts.push(Doc::indent(Doc::concat(inner)));

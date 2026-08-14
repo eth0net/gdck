@@ -520,6 +520,24 @@ mod tests {
         check_stable("var is_active = true:\n\tset = set_is_active\n");
     }
 
+    /// Godot decides which property form it is reading from the first accessor
+    /// and separates the two differently, so the comma is not a matter of
+    /// taste. In `set = f, get = g` it is what carries the parser on to the
+    /// second accessor: drop it and the property is over, and the `get` line
+    /// is rejected with "Expected end of indented block for property".
+    #[test]
+    fn a_setget_property_keeps_the_comma_between_its_accessors() {
+        check_stable("var p:\n\tset = __set,\n\tget = __get\n");
+        check_stable("var p:\n\tget = __get,\n\tset = __set\n");
+    }
+
+    /// The other form takes no comma at all — Godot never looks for one there,
+    /// so emitting it would be a syntax error rather than a redundancy.
+    #[test]
+    fn block_bodied_accessors_are_not_comma_separated() {
+        check_stable("var p:\n\tset(x):\n\t\t_p = x\n\tget:\n\t\treturn _p\n");
+    }
+
     #[test]
     fn the_safety_check_catches_a_lost_comment() {
         // Nothing should trip this; the test exists so the wiring is exercised
