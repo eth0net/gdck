@@ -1,7 +1,10 @@
 [package]
 name = "gdck-lint"
-description = "GDScript linter following the official style guide"
+description = "GDScript linter following the official style guide (internal)"
 version.workspace = true
+# Published only because the binary depends on it. The API is gdck's own and
+# changes with it; nothing here is a promise.
+publish = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

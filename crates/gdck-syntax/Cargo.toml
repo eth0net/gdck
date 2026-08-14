@@ -5,6 +5,9 @@ keywords = ["godot", "gdscript", "parser", "lexer", "cst"]
 categories = ["parser-implementations", "development-tools"]
 readme = "README.md"
 version.workspace = true
+# A library in its own right: no dependencies, and the tree reproduces its
+# input byte for byte, which is useful well beyond this tool.
+publish = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

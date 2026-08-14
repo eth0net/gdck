@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-15
+
+The first release with a working formatter and linter. `0.1.0` was the parser
+and a command-line skeleton, and was never published anywhere.
+
 ### Added
 
 - `gdck-config`: configuration files are read, and `gdck config` prints the
@@ -130,6 +135,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gdck format` writes summaries to standard error, so standard output carries
   only content: the formatted file when reading from `-`, the diff under
   `--diff`, and otherwise the list of paths that would change.
+- The crate holding the binary is now `gdck` rather than `gdck-cli`, so
+  installing it is `cargo install gdck`. The binary was always called `gdck`
+  and is unchanged. The name had to be settled before the first publish, since
+  a crate name cannot be moved afterwards.
+- Publishing is opt-in per crate, and every crate here opts in. `gdck-syntax`
+  is a library in its own right — no dependencies, and a tree that reproduces
+  its input byte for byte. `gdck-config`, `gdck-format` and `gdck-lint` are
+  published only because the binary depends on them; their APIs move with
+  `gdck` and carry no stability promise.
 
 ### Internal
 
@@ -180,5 +194,6 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 - `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and
   the planned rule catalogue.
 
-[Unreleased]: https://github.com/eth0net/gdck/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/eth0net/gdck/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/eth0net/gdck/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eth0net/gdck/releases/tag/v0.1.0

@@ -49,7 +49,7 @@ too, and there is no reason for each to write its own.
 ## Install
 
 ```sh
-cargo install --git https://github.com/eth0net/gdck gdck-cli
+cargo install --git https://github.com/eth0net/gdck gdck
 ```
 
 The binary is `gdck`. It does not install `gdformat`, `gdlint` or `gdparse`, so
@@ -319,7 +319,7 @@ All three are skipped when the variable is unset.
 The style-guide fixtures are regenerated from a checkout of the documentation:
 
 ```sh
-cargo build -p gdck-cli
+cargo build -p gdck
 tools/extract-style-guide-samples.py ../godot-docs
 ```
 
