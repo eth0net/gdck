@@ -97,3 +97,44 @@ jobs:
         env:
           GDCK_CORPUS: corpus/tests
         run: cargo test -p gdck-lint --test corpus -- --nocapture
+
+  godot:
+    name: godot conformance
+    runs-on: ubuntu-latest
+    env:
+      # The newest stable release. Older ones accept a subset of the language,
+      # so a case written against anything newer is skipped there rather than
+      # checked — and a skip is indistinguishable from a pass in the summary.
+      # Running the newest is what actually proves something. The note in
+      # crates/gdck-format/tests/godot.rs says more.
+      GODOT_VERSION: 4.7.1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          base=https://github.com/godotengine/godot-builds/releases/download
+          name="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          curl -sSfL "$base/${GODOT_VERSION}-stable/${name}.zip" -o godot.zip
+          unzip -q godot.zip
+          mv "$name" godot
+          chmod +x godot
+          # A binary that will not report its version is a broken download.
+          # Failing here rather than below keeps that from being read as the
+          # formatter having produced something Godot rejects.
+          ./godot --headless --version
+      - name: Check out the reference corpus
+        uses: actions/checkout@v5
+        with:
+          repository: Scony/godot-gdscript-toolkit
+          path: corpus
+      # The other corpus checks re-parse formatted output with `gdck-syntax`,
+      # which is lossless and lenient by design and so accepts things Godot
+      # does not. This is the one that asks Godot.
+      - name: Ask Godot to parse the formatted corpus
+        env:
+          GDCK_GODOT: ${{ github.workspace }}/godot
+          GDCK_CORPUS: corpus/tests
+        run: cargo test -p gdck-format --test godot -- --nocapture --test-threads=1
