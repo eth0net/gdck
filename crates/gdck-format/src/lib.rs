@@ -546,6 +546,39 @@ mod tests {
         );
     }
 
+    /// A standalone annotation opens or closes a region rather than saying
+    /// something about the declaration under it, so there is nothing for it to
+    /// sit beside. Godot rejects the attempt with "Expected newline after a
+    /// standalone annotation", which is what moving these up beside a `var`
+    /// used to produce.
+    #[test]
+    fn a_standalone_annotation_keeps_its_own_line() {
+        check_stable(
+            "func f():\n\
+             \t@warning_ignore_start(\"integer_division\")\n\
+             \tvar halved := total / 2\n\
+             \t@warning_ignore_restore(\"integer_division\")\n\
+             \treturn halved\n",
+        );
+        check_stable(
+            "@export_category(\"Stats\")\n\
+             @export_group(\"Health\", \"health_\")\n\
+             var health_max := 10\n\
+             @export_subgroup(\"Regen\")\n\
+             var health_regen := 1.0\n",
+        );
+    }
+
+    /// The ones that do describe the declaration below them still move up onto
+    /// its line, which is how the Godot documentation writes them.
+    #[test]
+    fn an_annotation_about_a_variable_stays_beside_it() {
+        check(
+            "@export_range(0, 10)\nvar lives := 3\n",
+            "@export_range(0, 10) var lives := 3\n",
+        );
+    }
+
     #[test]
     fn accessors_keep_the_form_they_were_written_in() {
         check_stable("var health = max_health:\n\tset(new_health):\n\t\thealth = new_health\n");

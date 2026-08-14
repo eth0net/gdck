@@ -103,6 +103,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   statement's indent — which the closing brackets of a wrapped call do not. A
   trailing comma ends the lambda on the body's own last line, so no line is
   left to check; collections already emitted one and argument lists now do too.
+- `gdck-format`: a standalone annotation was moved up beside the declaration
+  under it, producing a line Godot rejects with "Expected newline after a
+  standalone annotation". `@warning_ignore_start`, `@warning_ignore_restore`,
+  `@export_category`, `@export_group` and `@export_subgroup` open or close a
+  region rather than describing what follows them, so there is nothing for them
+  to sit beside and they now keep their own line. The annotations that do
+  describe the declaration below, like `@export_range`, still move up onto it.
 - `gdck-format`: parentheses around a multi-line lambda were closed on a line
   of their own, so `assert((func() -> bool: ...).call())` came back as
   something Godot rejects with "Unindent doesn't match the previous

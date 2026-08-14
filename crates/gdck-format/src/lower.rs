@@ -271,8 +271,9 @@ impl<'a> Lowerer<'a> {
                 }
             }
             parts.push(self.annotation(*annotation));
+            let name = self.annotation_name(*annotation);
             let own_line =
-                node.kind() == FuncDecl && self.annotation_name(*annotation) != "abstract";
+                standalone_annotation(name) || (node.kind() == FuncDecl && name != "abstract");
             match self.trailing_comment_of(last_significant(*annotation)) {
                 // `@onready # why` has to end its line, so the declaration it
                 // modifies moves to the next one.
@@ -1580,6 +1581,24 @@ enum ChainOp<'a> {
     Attr(String),
     Call(SyntaxNode<'a>),
     Index(SyntaxNode<'a>),
+}
+
+/// Whether Godot parses this annotation on its own account rather than as
+/// something said about the declaration under it.
+///
+/// These open or close a region — a group of exported properties, a span of
+/// suppressed warnings — so there is nothing for them to sit beside, and Godot
+/// rejects a line that tries: "Expected newline after a standalone annotation".
+/// The list is the `STANDALONE` registrations in `gdscript_parser.cpp`.
+fn standalone_annotation(name: &str) -> bool {
+    matches!(
+        name,
+        "export_category"
+            | "export_group"
+            | "export_subgroup"
+            | "warning_ignore_start"
+            | "warning_ignore_restore"
+    )
 }
 
 /// Whether this expression is a lambda that [`Lowerer::lambda_expr`] will
