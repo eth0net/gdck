@@ -96,6 +96,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   line. The Godot documentation writes `@rpc("any_peer")` above the `func` and
   `@export_range(0, 10) var lives` beside the `var`, so the two are now
   distinguished. `@abstract` stays inline either way, as a modifier.
+- `gdck-format`: an argument list ending in a multi-line lambda produced a file
+  Godot rejects with "Unindent doesn't match the previous indentation level".
+  A lambda body is the one place inside brackets where Godot still tracks
+  indentation, and the first line after it has to sit at the enclosing
+  statement's indent — which the closing brackets of a wrapped call do not. A
+  trailing comma ends the lambda on the body's own last line, so no line is
+  left to check; collections already emitted one and argument lists now do too.
 
 ### Changed
 
@@ -118,6 +125,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   what the tree needs — `MIT`, `Apache-2.0` and `Unicode-3.0` — so anything
   arriving with a fourth is a decision to be made rather than a default to be
   inherited.
+- Conformance against the real Godot parser, in `crates/gdck-format/tests/`.
+  The existing safety checks re-parse formatted output with `gdck-syntax`,
+  which is lossless and lenient by design and so accepts things Godot does
+  not; this asks Godot itself. The comparison is differential — Godot reports
+  undefined identifiers as parse errors too, so only files it accepted before
+  formatting are examined, and only failures formatting introduced are
+  reported. Set `GDCK_GODOT` to a Godot binary to run it.
 
 ## [0.1.0] - 2026-08-11
 

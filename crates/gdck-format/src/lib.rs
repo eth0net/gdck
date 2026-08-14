@@ -477,8 +477,41 @@ mod tests {
     #[test]
     fn a_multi_line_lambda_keeps_its_block() {
         check_stable(
-            "func f():\n\tbutton.pressed.connect(\n\t\t\tfunc() -> void:\n\t\t\t\tdo_something()\n\t)\n",
+            "func f():\n\tbutton.pressed.connect(\n\t\t\tfunc() -> void:\n\t\t\t\tdo_something(),\n\t)\n",
         );
+    }
+
+    /// The trailing comma above is not cosmetic.
+    ///
+    /// A lambda body is the one place inside brackets where Godot still tracks
+    /// indentation, and it stops again at whatever ends the lambda. Without the
+    /// comma the closing bracket's line is the first line after the body, and
+    /// Godot then demands it sit at the enclosing statement's indent. One level
+    /// of nesting can satisfy that by accident; two cannot, and the file stops
+    /// compiling with "Unindent doesn't match the previous indentation level".
+    ///
+    /// So the comma goes in whenever the list breaks and ends in a lambda
+    /// block, rather than only in the arrangement that would otherwise break.
+    /// The alternative is output whose validity depends on how deeply the call
+    /// happens to be nested.
+    #[test]
+    fn a_lambda_closing_a_nested_call_ends_with_a_comma() {
+        check_stable(
+            "func f():\n\
+             \tbox.add_child(\n\
+             \t\t\tmake_button(\n\
+             \t\t\t\t\t\"a long label here to force the formatter to wrap this\",\n\
+             \t\t\t\t\tfunc() -> void:\n\
+             \t\t\t\t\t\tdo_something(),\n\
+             \t\t\t)\n\
+             \t)\n",
+        );
+    }
+
+    #[test]
+    fn a_single_line_lambda_gains_no_comma() {
+        // It never opens a block, so nothing has to close one.
+        check_stable("func f():\n\tbutton.pressed.connect(func(): do_something())\n");
     }
 
     #[test]
