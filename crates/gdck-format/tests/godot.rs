@@ -21,6 +21,13 @@
 //! whatever anyone does to its formatting. So a file is only examined when
 //! Godot accepts it *before* formatting, and only failures that formatting
 //! introduced are reported.
+//!
+//! One consequence is worth knowing before reading a run against several Godot
+//! versions as a compatibility matrix. A case using a construct older versions
+//! do not have — `@warning_ignore_start` arrived in 4.4 — is skipped there
+//! rather than checked, and skipping looks exactly like passing. A green run on
+//! an old version means "nothing here regressed", never "everything here is
+//! supported".
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -56,6 +63,24 @@ const CASES: &[(&str, &str)] = &[
          \tvar callables := [func() -> void:\n\
          \t\tprint(\"a long enough body that the array has to break open somewhere\")]\n\
          \tprint(callables.size())\n",
+    ),
+    (
+        "standalone annotations around a run of statements",
+        // These open and close a region, so nothing can share their line.
+        "extends Node\n\n\nfunc halve(total: int) -> int:\n\
+         \t@warning_ignore_start(\"integer_division\")\n\
+         \tvar halved := total / 2\n\
+         \t@warning_ignore_restore(\"integer_division\")\n\
+         \treturn halved\n",
+    ),
+    (
+        "standalone annotations grouping exported properties",
+        "extends Node\n\n\
+         @export_category(\"Stats\")\n\
+         @export_group(\"Health\", \"health_\")\n\
+         var health_max := 10\n\
+         @export_subgroup(\"Regen\")\n\
+         var health_regen := 1.0\n",
     ),
     (
         "lambda inside a parenthesised expression",
