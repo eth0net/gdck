@@ -61,3 +61,43 @@ lto = "thin"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# Prebuilt binaries and the installers that put them on a PATH, built by `dist`
+# on every version tag. Most Godot developers have no Rust toolchain, so
+# `cargo install` reaches a fraction of them; a downloaded archive is the
+# fallback rather than the route.
+#
+# The installers earn their place twice over. A browser download is marked
+# `com.apple.quarantine` on macOS and trips SmartScreen on Windows, where a
+# script fetched with curl or irm is not — so they route around the prompt that
+# would otherwise stop a first-time user. They also write the install receipt
+# that a `gdck update` would read, which is why they come before it rather
+# than instead of it.
+[workspace.metadata.dist]
+cargo-dist-version = "0.32.0"
+ci = "github"
+installers = ["shell", "powershell"]
+# Linux is built against musl and statically linked, which this dependency tree
+# allows — no build scripts, nothing linking to C — so one binary runs on any
+# distribution with no minimum glibc.
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-musl",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-musl",
+    "x86_64-pc-windows-msvc",
+]
+# Not `CARGO_HOME`, which is the default and assumes the reader already has
+# Rust. Someone installing this way is telling us they do not: `~/.cargo/bin`
+# would likely not exist and would not be on their PATH. The installer adds
+# this one if it is missing.
+install-path = "~/.local/bin"
+# The receipt is written either way, so `gdck update` can be added later as a
+# subcommand without changing how anyone installed. `dist`'s own updater is a
+# second binary beside the first, which is not the shape wanted here.
+install-updater = false
