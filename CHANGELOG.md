@@ -14,6 +14,13 @@ and a command-line skeleton, and was never published anywhere.
 
 ### Added
 
+- Prebuilt binaries for macOS, Linux and Windows on every release, with a
+  one-line installer for each platform and a Homebrew formula in
+  [eth0net/homebrew-tap](https://github.com/eth0net/homebrew-tap). `gdck` is
+  for people writing Godot games, most of whom have no Rust toolchain, so
+  `cargo install` was a filter rather than an invitation. Linux is statically
+  linked against musl and runs on any distribution. Every archive carries a
+  SHA-256 beside it.
 - `gdck-config`: configuration files are read, and `gdck config` prints the
   settings a run would use.
   - `gdck.toml` or `.gdck.toml`, found by walking up from the directory the
@@ -83,15 +90,15 @@ and a command-line skeleton, and was never published anywhere.
 
 ### Fixed
 
-- `gdck-cli`: `gdck format -` wrote the literal string `-` to standard output
+- `gdck`: `gdck format -` wrote the literal string `-` to standard output
   instead of the formatted file, so `gdck format - < in.gd > out.gd` destroyed
   the file. Reading from `-` is now a filter with or without `--fix`, which is
   what the README always said it was: there is no file to write back to, so
   the formatted text is the output.
-- `gdck-cli`: `gdck parse` wrote its summary to standard output while every
+- `gdck`: `gdck parse` wrote its summary to standard output while every
   other subcommand wrote it to standard error, so `gdck parse --tree` mixed a
   sentence of prose into the tree.
-- `gdck-cli`: `--diff` printed the whole span between the first and last change
+- `gdck`: `--diff` printed the whole span between the first and last change
   as removed and re-added, so two one-line changes at opposite ends of a file
   printed the file twice. Diffs now come from `similar` and have hunks.
 - `gdck-syntax`: a single-line lambda inside a bracketed construct written
@@ -149,7 +156,7 @@ and a command-line skeleton, and was never published anywhere.
 
 - End-to-end tests that run the binary, covering what only a real process can
   answer: that nothing reaches the disk without `--fix`, which stream each kind
-  of output goes to, and which exit code comes back. Both of the `gdck-cli`
+  of output goes to, and which exit code comes back. Both of the `gdck`
   fixes above were found by writing them.
 - `prek` hooks in `prek.toml`, running the file-hygiene checks plus `cargo fmt`
   and `cargo clippy` on commit, and the tests, doctests and MSRV check on push.

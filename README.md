@@ -48,12 +48,54 @@ too, and there is no reason for each to write its own.
 
 ## Install
 
+Every route below installs one binary, `gdck`, and needs nothing else present
+— no Python, no runtime, no toolchain. It does not install `gdformat`,
+`gdlint` or `gdparse`, so it will never collide with `gdtoolkit` on your
+`PATH`.
+
+**macOS and Linux**
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eth0net/gdck/releases/latest/download/gdck-installer.sh | sh
+```
+
+**Windows**
+
+```powershell
+irm https://github.com/eth0net/gdck/releases/latest/download/gdck-installer.ps1 | iex
+```
+
+**Homebrew**
+
+```sh
+brew install eth0net/tap/gdck
+```
+
+The installers put `gdck` in `~/.local/bin` and add that to your `PATH` if it
+is not there already. Set `GDCK_INSTALL_DIR` to put it somewhere else.
+
+**From source**, if you have a Rust toolchain:
+
 ```sh
 cargo install --git https://github.com/eth0net/gdck gdck
 ```
 
-The binary is `gdck`. It does not install `gdformat`, `gdlint` or `gdparse`, so
-it will never collide with `gdtoolkit` on your `PATH`.
+Or take an archive for your platform from
+[the latest release](https://github.com/eth0net/gdck/releases/latest). Each one
+carries a `.sha256` beside it. Downloading through a browser is the one route
+where macOS and Windows will ask whether you trust an unsigned binary; the
+installers above are fetched rather than downloaded and are not marked that
+way.
+
+### In CI
+
+There is no runtime to set up, so a Godot project's workflow can have the
+linter in one step:
+
+```yaml
+- run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eth0net/gdck/releases/latest/download/gdck-installer.sh | sh
+- run: gdck check .
+```
 
 ## Usage
 
