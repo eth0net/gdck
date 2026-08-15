@@ -81,7 +81,14 @@ lto = "thin"
 [workspace.metadata.dist]
 cargo-dist-version = "0.32.0"
 ci = "github"
-installers = ["shell", "powershell"]
+installers = ["shell", "powershell", "homebrew"]
+# Written by the release, not by hand. `homebrew-core` would refuse a project
+# this new — it asks for a notable and established one — and a tap needs no
+# permission from anybody. Pushing to it needs a HOMEBREW_TAP_TOKEN secret on
+# this repository, since the token a workflow gets by default cannot write to
+# another one.
+tap = "eth0net/homebrew-tap"
+publish-jobs = ["homebrew"]
 # Linux is built against musl and statically linked, which this dependency tree
 # allows — no build scripts, nothing linking to C — so one binary runs on any
 # distribution with no minimum glibc.
