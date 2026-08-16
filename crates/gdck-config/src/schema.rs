@@ -60,7 +60,7 @@ pub(crate) const KEYS: &[&str] = &[
     "lint.declaration-order",
     "lint.disable",
     "files.exclude",
-    "files.extend-exclude",
+    "files.respect-gitignore",
 ];
 
 /// The shape of the file.
@@ -124,8 +124,8 @@ struct LintTable {
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 struct FilesTable {
     exclude: Option<Vec<String>>,
-    #[serde(alias = "extend_exclude")]
-    extend_exclude: Option<Vec<String>>,
+    #[serde(alias = "respect_gitignore")]
+    respect_gitignore: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -239,21 +239,14 @@ pub(crate) fn read(text: &str) -> Result<Config, Problem> {
     if let Some(disable) = file.lint.disable {
         config.lint.disabled = disable;
     }
-    // `exclude` replaces, `extend-exclude` adds to whatever is left after it.
-    // Writing both is therefore not a contradiction: the first says what the
-    // set is and the second adds to that, rather than to the defaults.
-    let replaced = file.files.exclude.is_some();
+    if let Some(respect) = file.files.respect_gitignore {
+        config.respect_gitignore = respect;
+    }
+    // Replaces the defaults rather than adding to them, so that a project can
+    // narrow them: gdUnit4 keeps its own source in `addons`, which the
+    // defaults skip, and has to be able to say so.
     if let Some(exclude) = file.files.exclude {
         config.excluded_dirs = exclude;
-    }
-    if let Some(extra) = file.files.extend_exclude {
-        if !replaced {
-            config.excluded_dirs = crate::DEFAULT_EXCLUDED_DIRS
-                .iter()
-                .map(|dir| (*dir).to_string())
-                .collect();
-        }
-        config.excluded_dirs.extend(extra);
     }
 
     config.format.indent = indent_of(text, &file.format)?;
@@ -574,6 +567,7 @@ fn render_lint(out: &mut String, config: &Config, defaults: Defaults) {
 }
 
 fn render_files(out: &mut String, config: &Config, defaults: Defaults) {
+    let base = Config::default();
     let exclusions = effective_exclusions(config);
     let untouched = exclusions.iter().eq(crate::DEFAULT_EXCLUDED_DIRS.iter());
     put(
@@ -581,6 +575,12 @@ fn render_files(out: &mut String, config: &Config, defaults: Defaults) {
         defaults,
         untouched,
         &format!("exclude = {}", array(&exclusions)),
+    );
+    put(
+        out,
+        defaults,
+        config.respect_gitignore == base.respect_gitignore,
+        &format!("respect-gitignore = {}", config.respect_gitignore),
     );
 }
 
@@ -658,27 +658,14 @@ mod tests {
     }
 
     #[test]
-    fn extend_exclude_adds_to_the_defaults_rather_than_replacing_them() {
-        // The reason it exists. `exclude = ["vendor"]` reads as "also skip
-        // vendor" and means "skip only vendor", which quietly starts walking
-        // `.godot` — Godot's generated import cache — and `addons`.
-        let config = read_ok("[files]\nextend-exclude = [\"vendor\"]\n");
-        assert_eq!(
-            config.excluded_dirs,
-            [".git", ".godot", ".import", "addons", "vendor"]
-        );
-        assert!(config.is_excluded_dir(".godot"));
-        assert!(config.is_excluded_dir("vendor"));
-    }
-
-    #[test]
-    fn extend_exclude_adds_to_an_exclude_beside_it_not_to_the_defaults() {
-        // Both together are not a contradiction: the first says what the set
-        // is, the second adds to that. A project narrowing the defaults on
-        // purpose keeps getting what it asked for.
-        let config = read_ok("[files]\nexclude = [\".git\"]\nextend-exclude = [\"vendor\"]\n");
-        assert_eq!(config.excluded_dirs, [".git", "vendor"]);
-        assert!(!config.is_excluded_dir(".godot"));
+    fn exclude_replaces_the_defaults_so_a_project_can_narrow_them() {
+        // Replacing rather than adding is what lets a project *narrow* the
+        // list, which gdUnit4 needs: its own source lives in `addons`, which
+        // the defaults skip. `gdck init` writes the effective list, so a
+        // generated file shows every name rather than only the change.
+        let config = read_ok("[files]\nexclude = [\".git\"]\n");
+        assert_eq!(config.excluded_dirs, [".git"]);
+        assert!(!config.is_excluded_dir("addons"));
     }
 
     #[test]
@@ -840,6 +827,7 @@ mod tests {
                 disabled: vec!["max-returns".to_string()],
             },
             excluded_dirs: vec!["vendor".to_string()],
+            respect_gitignore: false,
         };
         assert_eq!(read_ok(&config.to_toml()), config);
     }

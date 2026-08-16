@@ -25,6 +25,7 @@ gdck-config.workspace = true
 gdck-format.workspace = true
 gdck-lint.workspace = true
 gdck-syntax.workspace = true
+ignore.workspace = true
 similar.workspace = true
 
 [dev-dependencies]

@@ -164,6 +164,11 @@ up for `gdformat` and `gdlint` keeps its settings without writing anything new.
 carry. Settings left at the style guide's default are written commented out, so
 the file says what your project decided rather than pinning today's defaults.
 
+Walking a directory skips `.git`, `.godot`, `.import` and `addons`, and anything
+your `.gitignore` covers — a `.gd` file git ignores is nearly always generated.
+Change the first with `files.exclude`; turn the second off with `--no-gitignore`.
+A file you name on the command line is always processed.
+
 ### Reading from standard input
 
 ```sh

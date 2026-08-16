@@ -9,15 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `files.extend-exclude` skips directories *as well as* the defaults, where
-  `files.exclude` replaces them. `exclude = ["vendor"]` reads as "also skip
-  vendor" and means "skip only vendor", which quietly started walking `.godot`
-  — Godot's generated import cache — and `addons`. `gdtoolkit` excludes only
-  `.git` by default, so replacing its list costs almost nothing; replacing
-  gdck's costs three directories nobody meant to include.
-  The two compose: `exclude` says what the set is and `extend-exclude` adds to
-  that, so a project deliberately narrowing the defaults still gets what it
-  asked for.
+- Files a `.gitignore` covers are skipped, which is new behaviour rather than a
+  new option: a `.gd` file git has been told to ignore is almost always
+  generated or vendored, and reporting on it is noise about code nobody edits.
+  `files.respect-gitignore = false` or `--no-gitignore` turns it off.
+  What is skipped is what `git status` leaves out — the nearest `.gitignore` and
+  every one above it, nested files, `!` negations, `.git/info/exclude` and the
+  global file — because this uses the same crate `ripgrep` does rather than a
+  hand-rolled matcher whose disagreements with git would be silent. A directory
+  with a `.gitignore` but no `.git` is still read, since an export or a vendored
+  copy meant what its file says.
+  It is a second filter beside `files.exclude`, not a replacement, and neither
+  covers the other: `addons` is committed so no `.gitignore` names it, and
+  `build/` is ignored without being a name anybody listed. A path given directly
+  on the command line is still processed, as with the exclusions.
+  On the two projects trialled, neither has a gitignored `.gd` file, so nothing
+  they report changed.
 
 ### Documentation
 

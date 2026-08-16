@@ -280,12 +280,30 @@ pub mod naming {
 }
 
 /// The full configuration for a run.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Config {
     pub format: FormatConfig,
     pub lint: LintConfig,
     pub excluded_dirs: Vec<String>,
+    /// Skip files a `.gitignore` covers.
+    ///
+    /// On, because a `.gd` file git has been told to ignore is almost always
+    /// something generated or vendored, and reporting on it is noise about
+    /// code nobody is going to edit. A path named directly on the command line
+    /// is still processed: naming a file is a stronger signal than a pattern.
+    pub respect_gitignore: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            format: FormatConfig::default(),
+            lint: LintConfig::default(),
+            excluded_dirs: Vec::new(),
+            respect_gitignore: true,
+        }
+    }
 }
 
 impl Config {

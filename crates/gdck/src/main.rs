@@ -98,6 +98,9 @@ struct CommonArgs {
     /// Ignore every configuration file and use the style guide's defaults
     #[arg(long, conflicts_with = "config")]
     no_config: bool,
+    /// Walk into files a .gitignore covers, which are skipped by default
+    #[arg(long)]
+    no_gitignore: bool,
 }
 
 #[derive(Debug, Args)]
@@ -229,13 +232,19 @@ fn run(cli: &Cli) -> Result<ExitCode> {
 /// defaults would mean formatting a project by rules it explicitly rejected,
 /// and doing so without saying anything.
 fn settings(common: &CommonArgs) -> Result<Loaded> {
-    if common.no_config {
-        return Ok(Loaded::default());
+    let mut loaded = if common.no_config {
+        Loaded::default()
+    } else {
+        match &common.config {
+            Some(path) => gdck_config::load(path)?,
+            None => gdck_config::resolve(&base_dir(&common.paths))?,
+        }
+    };
+    // A flag is for this run, so it wins over the file it read.
+    if common.no_gitignore {
+        loaded.config.respect_gitignore = false;
     }
-    match &common.config {
-        Some(path) => Ok(gdck_config::load(path)?),
-        None => Ok(gdck_config::resolve(&base_dir(&common.paths))?),
-    }
+    Ok(loaded)
 }
 
 /// Where the search for a configuration file starts.
@@ -320,6 +329,9 @@ fn run_init(args: &InitArgs) -> Result<ExitCode> {
         paths: vec![args.path.clone()],
         config: args.config.clone(),
         no_config: args.no_config,
+        // `init` reads settings rather than walking files, so this says
+        // nothing about what it does.
+        no_gitignore: false,
     })?;
 
     // Anything gdtoolkit asked for that has no equivalent here is named before
