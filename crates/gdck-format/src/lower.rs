@@ -197,15 +197,35 @@ impl<'a> Lowerer<'a> {
                 .map(|token| self.trivia.leading_at(token.range.start()))
                 .unwrap_or_default();
 
+            // A comment with a blank line between it and the declaration below
+            // is not that declaration's. Godot's rule for documentation is that
+            // a `##` block "must immediately precede a script member, or for
+            // script descriptions, be placed at the top of the script", and the
+            // author writing that blank line is what says which. So the
+            // mandated spacing goes *after* such a comment rather than before
+            // it, leaving it where it was written.
+            let detached = !leading.comments.is_empty() && leading.blank_lines_before > 0;
+
             if let Some(previous) = previous {
                 parts.push(Doc::hard_line());
-                for _ in 0..blank_lines_before(previous, *item, &leading, scope) {
+                let gap = if detached {
+                    blank_lines_before_comment(previous, &leading, scope)
+                } else {
+                    blank_lines_before(previous, *item, &leading, scope)
+                };
+                for _ in 0..gap {
                     parts.push(Doc::hard_line());
                 }
             }
 
             if !leading.comments.is_empty() {
-                parts.push(comment_run(&leading, true));
+                parts.push(comment_run(&leading, !detached));
+                if detached {
+                    parts.push(Doc::hard_line());
+                    for _ in 0..blank_lines_after_comment(*item, &leading, scope) {
+                        parts.push(Doc::hard_line());
+                    }
+                }
             }
             parts.push(self.member(*item, scope));
 
@@ -1692,12 +1712,41 @@ fn blank_lines_before(
         .map_or(leading.blank_lines_before, |first| first.blank_lines_before);
 
     if is_definition(previous) || is_definition(item) {
-        return match scope {
-            Scope::File => 2,
-            Scope::Class | Scope::Function => 1,
-        };
+        return mandated(scope);
     }
     blank_run(requested)
+}
+
+/// Blank lines above a comment that does not belong to the declaration below
+/// it. The guide's spacing is owed to the definition *above*, if there was one;
+/// past that the comment keeps the spacing it was written with.
+fn blank_lines_before_comment(previous: SyntaxNode<'_>, leading: &Leading, scope: Scope) -> usize {
+    if is_definition(previous) {
+        return mandated(scope);
+    }
+    blank_run(
+        leading
+            .comments
+            .first()
+            .map_or(leading.blank_lines_before, |first| first.blank_lines_before),
+    )
+}
+
+/// Blank lines between such a comment and the declaration under it, which is
+/// where the guide's spacing goes once the comment is not part of it.
+fn blank_lines_after_comment(item: SyntaxNode<'_>, leading: &Leading, scope: Scope) -> usize {
+    if is_definition(item) {
+        return mandated(scope);
+    }
+    blank_run(leading.blank_lines_before)
+}
+
+/// What the guide asks for around a definition, which depends on where it is.
+fn mandated(scope: Scope) -> usize {
+    match scope {
+        Scope::File => 2,
+        Scope::Class | Scope::Function => 1,
+    }
 }
 
 /// Significant direct child tokens, in source order.
