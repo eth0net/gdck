@@ -161,7 +161,7 @@ dependencies = [
 
 [[package]]
 name = "gdck"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "gdck-config"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "toml",
@@ -184,7 +184,7 @@ dependencies = [
 
 [[package]]
 name = "gdck-format"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "gdck-config",
  "gdck-syntax",
@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "gdck-lint"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "gdck-config",
  "gdck-format",
@@ -201,7 +201,7 @@ dependencies = [
 
 [[package]]
 name = "gdck-syntax"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "hashbrown"
