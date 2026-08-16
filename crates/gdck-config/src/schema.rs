@@ -17,7 +17,9 @@
 use serde::Deserialize;
 use toml::Spanned;
 
-use crate::{CodeOrderFix, Config, DeclarationGroup, FileNameCase, IndentStyle, Problem};
+use crate::{
+    ClassDeclaration, CodeOrderFix, Config, DeclarationGroup, FileNameCase, IndentStyle, Problem,
+};
 
 /// Named in the error when a declaration group is misspelled.
 const DECLARATION_GROUPS: &[&str] = &[
@@ -46,6 +48,7 @@ pub(crate) const KEYS: &[&str] = &[
     "format.line-length",
     "format.indent",
     "format.indent-width",
+    "format.class-declaration",
     "format.safety-checks",
     "lint.max-line-length",
     "lint.max-file-lines",
@@ -88,6 +91,8 @@ struct FormatTable {
     indent: Option<Spanned<Indent>>,
     #[serde(alias = "indent_width")]
     indent_width: Option<Spanned<u8>>,
+    #[serde(alias = "class_declaration")]
+    class_declaration: Option<ClassDecl>,
     #[serde(alias = "safety_checks")]
     safety_checks: Option<bool>,
 }
@@ -133,6 +138,23 @@ enum CodeOrder {
     Report,
     FixWhenSafe,
     Off,
+}
+
+/// Named after the shape it produces; see [`ClassDeclaration`].
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum ClassDecl {
+    MultiLine,
+    SingleLine,
+}
+
+impl From<ClassDecl> for ClassDeclaration {
+    fn from(shape: ClassDecl) -> Self {
+        match shape {
+            ClassDecl::MultiLine => Self::MultiLine,
+            ClassDecl::SingleLine => Self::SingleLine,
+        }
+    }
 }
 
 /// Named conventions rather than patterns; see [`FileNameCase`].
@@ -207,6 +229,9 @@ pub(crate) fn read(text: &str) -> Result<Config, Problem> {
             groups.push(group);
         }
         config.lint.declaration_order = Some(groups);
+    }
+    if let Some(shape) = file.format.class_declaration {
+        config.format.class_declaration = shape.into();
     }
     if let Some(disable) = file.lint.disable {
         config.lint.disabled = disable;
@@ -386,6 +411,11 @@ pub(crate) fn to_toml(config: &Config) -> String {
             let _ = writeln!(out, "indent-width = {width}");
         }
     }
+    let shape = match format.class_declaration {
+        ClassDeclaration::MultiLine => "multi-line",
+        ClassDeclaration::SingleLine => "single-line",
+    };
+    let _ = writeln!(out, "class-declaration = \"{shape}\"");
     let _ = writeln!(out, "safety-checks = {}", format.safety_checks);
 
     let _ = writeln!(out, "\n[lint]");
@@ -629,6 +659,7 @@ mod tests {
             format: crate::FormatConfig {
                 line_length: 120,
                 indent: IndentStyle::Spaces(2),
+                class_declaration: ClassDeclaration::SingleLine,
                 safety_checks: false,
             },
             lint: crate::LintConfig {
