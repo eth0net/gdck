@@ -6,7 +6,7 @@ contributions right now are the formatter and the linter — see
 
 ## Getting set up
 
-Rust 1.85 or newer (the crates use edition 2024).
+Rust 1.88 or newer.
 
 ```sh
 git clone https://github.com/eth0net/gdck

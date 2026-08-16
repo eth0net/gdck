@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   On the two projects trialled, neither has a gitignored `.gd` file, so nothing
   they report changed.
 
+### Changed
+
+- The minimum supported Rust version is 1.88, up from 1.85. Nothing about the
+  released binaries changes — they are prebuilt, and the installers and Homebrew
+  need no toolchain at all — so this only affects `cargo install gdck` on a
+  toolchain older than June 2025. It was 1.85 because that is edition 2024's
+  floor rather than because anything wanted it, and holding it there meant
+  pinning dependencies to versions that predate stable let-chains.
+
 ### Documentation
 
 - `docs/CONFIG.md` now says why a `gdlintrc`'s `max-line-length` moves only the

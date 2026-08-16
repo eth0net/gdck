@@ -60,5 +60,5 @@ hooks = [
   # so CI runs both. So does this.
   { id = "cargo-test-doc", name = "cargo test --doc", entry = "cargo test --doc --workspace", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true, stages = ["pre-push"] },
 
-  { id = "cargo-msrv", name = "cargo check (MSRV 1.85)", entry = "cargo +1.85.0 check --workspace", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true, stages = ["pre-push"] },
+  { id = "cargo-msrv", name = "cargo check (MSRV 1.88)", entry = "cargo +1.88.0 check --workspace", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true, stages = ["pre-push"] },
 ]

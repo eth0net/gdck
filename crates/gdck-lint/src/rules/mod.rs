@@ -133,10 +133,10 @@ pub(crate) fn name_token(node: SyntaxNode<'_>) -> Option<Token> {
 pub(crate) fn class_bodies(root: SyntaxNode<'_>) -> Vec<SyntaxNode<'_>> {
     let mut bodies = vec![root];
     for node in root.descendants() {
-        if node.kind() == SyntaxKind::ClassDecl {
-            if let Some(block) = node.child_node_of(SyntaxKind::Block) {
-                bodies.push(block);
-            }
+        if node.kind() == SyntaxKind::ClassDecl
+            && let Some(block) = node.child_node_of(SyntaxKind::Block)
+        {
+            bodies.push(block);
         }
     }
     bodies

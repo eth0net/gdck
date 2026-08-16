@@ -125,11 +125,11 @@ fn split_units(body: &str) -> Vec<&str> {
     let mut units = Vec::new();
     let mut chars = body.char_indices();
     while let Some((start, c)) = chars.next() {
-        if c == '\\' {
-            if let Some((next_start, next)) = chars.next() {
-                units.push(&body[start..next_start + next.len_utf8()]);
-                continue;
-            }
+        if c == '\\'
+            && let Some((next_start, next)) = chars.next()
+        {
+            units.push(&body[start..next_start + next.len_utf8()]);
+            continue;
         }
         units.push(&body[start..start + c.len_utf8()]);
     }

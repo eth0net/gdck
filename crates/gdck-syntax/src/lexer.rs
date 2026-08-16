@@ -335,14 +335,13 @@ impl<'a> Lexer<'a> {
                 indent_len: self.indents.len(),
                 inline: false,
             });
-        } else if kind != SyntaxKind::Newline {
-            if let Some(context) = self.lambda_stack.last_mut() {
-                if context.body_column.is_none() {
-                    // A token after the `:` and before any newline means the
-                    // body is on this line, so the lambda ends with it.
-                    context.inline = true;
-                }
-            }
+        } else if kind != SyntaxKind::Newline
+            && let Some(context) = self.lambda_stack.last_mut()
+            && context.body_column.is_none()
+        {
+            // A token after the `:` and before any newline means the
+            // body is on this line, so the lambda ends with it.
+            context.inline = true;
         }
 
         if kind != SyntaxKind::Newline {
