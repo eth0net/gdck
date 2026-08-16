@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- `docs/RULES.md` says why a project arriving from a clean `gdlint` run sees new
+  `code-order` reports. `gdlint` has a token for static *variables* and none for
+  static *methods* — in `gdtoolkit`'s `linter/class_checks.py`, `static_func_def`
+  returns `"others"`, the same bucket as an ordinary function — so
+  `class-definitions-order` cannot place `_static_init()` or "remaining static
+  methods", which the guide puts before the virtual callbacks. Inner classes,
+  which the guide puts last, have no token either. Neither report is a
+  regression; both are orderings nothing had been checking.
+- `docs/DESIGN.md` records why there is no `gdck config set`, and what would have
+  to be true to add one.
 - `docs/CONFIG.md` now says why a `gdlintrc`'s `max-line-length` moves only the
   linter while a `gdformatrc`'s `line_length` moves both. This was raised as a
   bug — the formatter "should" widen to match — and checking it against

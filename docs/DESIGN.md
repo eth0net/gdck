@@ -493,6 +493,30 @@ them key by key. Merging would make the effective settings a function of two
 files that were written years apart by people solving different problems, and
 `gdck config` exists precisely because that question should have a short answer.
 
+### Writing settings, and why there is no `config set`
+
+`gdck init` creates the file; nothing edits one in place. A `git config`-style
+`gdck config set lint.max-returns 3` has been considered and is not built.
+
+The generated file is mostly comments — the commented-out defaults, the header
+explaining them, and whatever the project wrote itself. A setter implemented the
+obvious way, reading into a `Config` and writing it back out, would delete all of
+that. That is the same failure as `gdck config > gdck.toml`, which this project
+shipped as documented advice and had to retract: a command that looks like it
+edits a file while actually replacing it with a machine's idea of it. Doing it
+safely means a format-preserving editor such as `toml_edit`, and that is the
+condition rather than a detail.
+
+Against that, the case is thin. `git config` earns its setters because git's
+configuration is a hierarchy edited constantly across scopes; this is one
+project file touched at adoption and when somebody changes their mind. No
+comparable tool has one — `ruff`, `black`, `prettier`, `rustfmt` and `biome` all
+offer generation or migration and no `set`.
+
+The use that would justify it is scripted rollout across many repositories,
+where `sed` is genuinely awkward because it has to *uncomment* a default line.
+If that turns up, build it on `toml_edit`.
+
 ### The linter and the formatter cannot disagree about width
 
 Setting `format.line-length` moves `lint.max-line-length` with it unless that
