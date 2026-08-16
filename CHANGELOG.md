@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `gdck init` writes a `gdck.toml`. In a project with a `gdformatrc` or
+  `gdlintrc` it is also the migration path: the settings are read by the same
+  code that reads them for a real run, so what lands in the file is exactly what
+  `gdck` was already doing — `gdck config` prints the same thing before and
+  after — and anything `gdtoolkit` had that has no equivalent here is named
+  before the file is written rather than dropped in silence.
+  Settings still at the style guide's default are written commented out. The
+  live lines are then the project's own decisions, and a later change to a
+  default still reaches it rather than being pinned by accident.
+  It refuses to overwrite an existing `gdck.toml` without `--force`.
+  `--no-config` starts from the defaults instead of what is there, and
+  `--config <path>` takes a named file as the source.
+
 - `format.class-declaration` chooses whether a file-level `class_name` keeps
   its `extends` on the same line. `"multi-line"` is the default and the style
   guide's answer — its prose introduces the two in sequence, its examples write
@@ -35,6 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- `docs/CONFIG.md` recommended `gdck config > gdck.toml` as the way to start a
+  configuration file. It does the opposite of what it looks like: the shell
+  creates the file before `gdck` starts, `gdck` finds an empty `gdck.toml`,
+  which beats a `gdlintrc` outright, and writes the defaults into it. A project
+  following that advice to migrate lost every setting it had and was left with
+  a file that looked deliberate. The advice is retracted in place, and
+  `gdck init` does the job properly.
 - `docs/CONFIG.md` listed `class-definitions-order` among the `gdlintrc`
   settings that are reported and not applied. It has been read into
   `lint.declaration-order` since 0.3.0; the page now says so.

@@ -1,9 +1,13 @@
 //! The `gdck` command-line interface.
 //!
-//! One rule governs the whole surface: **nothing is written to disk without
+//! One rule governs the whole surface: **no `.gd` file is written without
 //! `--fix`**. `check` and `fix` are the everything-at-once verbs; `format` and
 //! `lint` are the narrower ones. `--check` is accepted everywhere as a no-op so
 //! that muscle memory from `gdformat` and `black` does not produce an error.
+//!
+//! `init` is the one command that writes without being asked twice, and it
+//! writes a `gdck.toml` rather than anybody's code. It still refuses to
+//! overwrite one that is already there.
 
 mod files;
 
@@ -49,6 +53,36 @@ enum Command {
     Parse(ParseArgs),
     /// Print the settings a run would use, as a gdck.toml
     Config(CommonArgs),
+    /// Write a gdck.toml, carrying over any gdtoolkit settings found
+    Init(InitArgs),
+}
+
+/// `gdck init`, which writes the settings already in force into a file.
+///
+/// In a project with a `gdformatrc` or `gdlintrc` that makes it the migration
+/// path: the settings are read by the same code that reads them for a real
+/// run, so what lands in the file is what `gdck` was already going to do, and
+/// anything gdtoolkit had that has no equivalent here is named rather than
+/// dropped in silence.
+///
+/// It exists because `gdck config > gdck.toml` cannot work. The shell creates
+/// the file before `gdck` starts, `gdck` then finds an empty `gdck.toml`,
+/// which wins outright over a `gdlintrc`, and writes the defaults into it —
+/// losing exactly the settings the command was run to keep.
+#[derive(Debug, Args)]
+struct InitArgs {
+    /// Directory to write the gdck.toml into
+    #[arg(default_value = ".")]
+    path: PathBuf,
+    /// Take the settings from this file rather than searching for one
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
+    /// Start from the style guide's defaults, ignoring any file that exists
+    #[arg(long, conflicts_with = "config")]
+    no_config: bool,
+    /// Overwrite a gdck.toml that is already there
+    #[arg(long)]
+    force: bool,
 }
 
 /// The paths to work on, and where the settings come from.
@@ -150,6 +184,12 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: &Cli) -> Result<ExitCode> {
+    // `init` searches from the directory it will write into, and takes its
+    // own path argument, so it resolves its settings separately.
+    if let Command::Init(args) = &cli.command {
+        return run_init(args);
+    }
+
     let common = match &cli.command {
         Command::Parse(args) => &args.common,
         Command::Check(args) => &args.common,
@@ -157,6 +197,7 @@ fn run(cli: &Cli) -> Result<ExitCode> {
         Command::Format(args) => &args.common,
         Command::Lint(args) => &args.common,
         Command::Config(args) => args,
+        Command::Init(_) => unreachable!("handled above"),
     };
     let loaded = settings(common)?;
 
@@ -178,7 +219,7 @@ fn run(cli: &Cli) -> Result<ExitCode> {
         Command::Fix(args) => run_fix(args, config),
         Command::Format(args) => run_format(args, config),
         Command::Lint(args) => run_lint(args, config),
-        Command::Config(_) => unreachable!("handled above"),
+        Command::Config(_) | Command::Init(_) => unreachable!("handled above"),
     }
 }
 
@@ -259,10 +300,66 @@ fn report_unknown_rules(loaded: &Loaded) {
     }
 }
 
+/// Write a `gdck.toml` holding the settings already in force.
+///
+/// The file is refused rather than overwritten. Someone running this in a
+/// project that already has one has either forgotten or is in the wrong
+/// directory, and replacing a file of settings they chose is not a thing to do
+/// on a guess.
+fn run_init(args: &InitArgs) -> Result<ExitCode> {
+    let target = args.path.join("gdck.toml");
+    if target.exists() && !args.force {
+        eprintln!(
+            "gdck: {} already exists; pass --force to replace it",
+            target.display()
+        );
+        return Ok(ExitCode::from(EXIT_ERROR));
+    }
+
+    let loaded = settings(&CommonArgs {
+        paths: vec![args.path.clone()],
+        config: args.config.clone(),
+        no_config: args.no_config,
+    })?;
+
+    // Anything gdtoolkit asked for that has no equivalent here is named before
+    // the file is written, not after: the whole point of the command is that
+    // nothing is lost quietly.
+    for note in &loaded.notes {
+        eprintln!("gdck: {note}");
+    }
+    report_unknown_rules(&loaded);
+
+    let source = if loaded.files.is_empty() {
+        "the style guide's defaults".to_string()
+    } else {
+        let files: Vec<String> = loaded
+            .files
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect();
+        files.join(", ")
+    };
+    let body = format!(
+        "# Written by `gdck init` from {source}.\n\
+         #\n\
+         # Every setting gdck has is listed. The commented ones are still at\n\
+         # the style guide's default, so uncommenting one only pins it — and\n\
+         # leaving it be means this project follows the guide if it changes.\n\
+         # See https://github.com/eth0net/gdck/blob/main/docs/CONFIG.md\n\n\
+         {}",
+        loaded.config.to_starter_toml()
+    );
+    std::fs::write(&target, body)?;
+
+    println!("Wrote {} from {source}.", target.display());
+    Ok(ExitCode::SUCCESS)
+}
+
 /// Print the settings this run would use, as a `gdck.toml`.
 ///
-/// Which doubles as a way to write one: `gdck config > gdck.toml` produces a
-/// file that says exactly what the defaults already do.
+/// To *write* one, use `gdck init`. A shell redirect cannot do it: the file is
+/// created before `gdck` starts, and an empty `gdck.toml` beats a `gdlintrc`.
 fn run_config(loaded: &Loaded) -> ExitCode {
     print!("{}", loaded.config.to_toml());
     if loaded.files.is_empty() {

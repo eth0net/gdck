@@ -393,57 +393,179 @@ fn distance(a: &str, b: &str) -> usize {
 /// by hand rather than by serialising [`File`], because that struct is built
 /// around what was *left out* — which is the one thing this must not do.
 pub(crate) fn to_toml(config: &Config) -> String {
+    render(config, Defaults::Write)
+}
+
+/// Write a configuration out as a `gdck.toml` for someone to keep.
+///
+/// See [`Defaults::Comment`] for what makes this different.
+pub(crate) fn to_starter_toml(config: &Config) -> String {
+    render(config, Defaults::Comment)
+}
+
+/// What to do with a setting that is still at its default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Defaults {
+    /// Write it. `gdck config` answers what a run is actually using, and a
+    /// value being the default is no reason to leave it out of that answer.
+    Write,
+    /// Comment it out. `gdck init` writes a file somebody then maintains, and
+    /// there the two kinds of line mean different things: a live one is a
+    /// decision this project made, and a commented one is a setting it has not
+    /// made yet, listed so it can be found without opening the documentation.
+    ///
+    /// Keeping the defaults commented also means a project inherits later
+    /// changes to them, rather than silently pinning today's values forever.
+    Comment,
+}
+
+/// One setting, commented out or not depending on `defaults`.
+fn put(out: &mut String, defaults: Defaults, at_default: bool, setting: &str) {
     use std::fmt::Write;
 
-    let format = &config.format;
-    let lint = &config.lint;
-    let mut out = String::new();
+    // Writing to a String cannot fail, so the result goes nowhere.
+    if defaults == Defaults::Comment && at_default {
+        let _ = writeln!(out, "# {setting}");
+    } else {
+        let _ = writeln!(out, "{setting}");
+    }
+}
 
-    // Writing to a String cannot fail, so the results go nowhere.
+fn render(config: &Config, defaults: Defaults) -> String {
+    use std::fmt::Write;
+
+    let mut out = String::new();
+    // A table header stays live even when every setting under it is commented,
+    // so that uncommenting one line is all it takes.
     let _ = writeln!(out, "[format]");
-    let _ = writeln!(out, "line-length = {}", format.line_length);
+    render_format(&mut out, config, defaults);
+    let _ = writeln!(out, "\n[lint]");
+    render_lint(&mut out, config, defaults);
+    let _ = writeln!(out, "\n[files]");
+    render_files(&mut out, config, defaults);
+    out
+}
+
+fn render_format(out: &mut String, config: &Config, defaults: Defaults) {
+    let base = Config::default();
+    let format = &config.format;
+    put(
+        out,
+        defaults,
+        format.line_length == base.format.line_length,
+        &format!("line-length = {}", format.line_length),
+    );
     match format.indent {
-        IndentStyle::Tabs => {
-            let _ = writeln!(out, "indent = \"tabs\"");
-        }
+        IndentStyle::Tabs => put(
+            out,
+            defaults,
+            base.format.indent == IndentStyle::Tabs,
+            "indent = \"tabs\"",
+        ),
         IndentStyle::Spaces(width) => {
-            let _ = writeln!(out, "indent = \"spaces\"");
-            let _ = writeln!(out, "indent-width = {width}");
+            put(out, defaults, false, "indent = \"spaces\"");
+            put(out, defaults, false, &format!("indent-width = {width}"));
         }
     }
     let shape = match format.class_declaration {
         ClassDeclaration::MultiLine => "multi-line",
         ClassDeclaration::SingleLine => "single-line",
     };
-    let _ = writeln!(out, "class-declaration = \"{shape}\"");
-    let _ = writeln!(out, "safety-checks = {}", format.safety_checks);
+    put(
+        out,
+        defaults,
+        format.class_declaration == base.format.class_declaration,
+        &format!("class-declaration = {}", quoted(shape)),
+    );
+    put(
+        out,
+        defaults,
+        format.safety_checks == base.format.safety_checks,
+        &format!("safety-checks = {}", format.safety_checks),
+    );
+}
 
-    let _ = writeln!(out, "\n[lint]");
-    let _ = writeln!(out, "max-line-length = {}", lint.max_line_length);
-    let _ = writeln!(out, "max-file-lines = {}", lint.max_file_lines);
-    let _ = writeln!(out, "max-public-methods = {}", lint.max_public_methods);
-    let _ = writeln!(out, "max-returns = {}", lint.max_returns);
-    let _ = writeln!(out, "max-arguments = {}", lint.max_function_arguments);
+fn render_lint(out: &mut String, config: &Config, defaults: Defaults) {
+    let base = Config::default();
+    let lint = &config.lint;
+    put(
+        out,
+        defaults,
+        lint.max_line_length == base.lint.max_line_length,
+        &format!("max-line-length = {}", lint.max_line_length),
+    );
+    put(
+        out,
+        defaults,
+        lint.max_file_lines == base.lint.max_file_lines,
+        &format!("max-file-lines = {}", lint.max_file_lines),
+    );
+    put(
+        out,
+        defaults,
+        lint.max_public_methods == base.lint.max_public_methods,
+        &format!("max-public-methods = {}", lint.max_public_methods),
+    );
+    put(
+        out,
+        defaults,
+        lint.max_returns == base.lint.max_returns,
+        &format!("max-returns = {}", lint.max_returns),
+    );
+    put(
+        out,
+        defaults,
+        lint.max_function_arguments == base.lint.max_function_arguments,
+        &format!("max-arguments = {}", lint.max_function_arguments),
+    );
     let order = match lint.code_order {
         CodeOrderFix::ReportOnly => "report",
         CodeOrderFix::WholeFileWhenSafe => "fix-when-safe",
         CodeOrderFix::Off => "off",
     };
-    let _ = writeln!(out, "code-order = {}", quoted(order));
+    put(
+        out,
+        defaults,
+        lint.code_order == base.lint.code_order,
+        &format!("code-order = {}", quoted(order)),
+    );
     let case = match lint.file_name {
         FileNameCase::SnakeCase => "snake-case",
         FileNameCase::PascalCase => "pascal-case",
     };
-    let _ = writeln!(out, "file-name = {}", quoted(case));
+    put(
+        out,
+        defaults,
+        lint.file_name == base.lint.file_name,
+        &format!("file-name = {}", quoted(case)),
+    );
+    // Only written when a project has one, so it is never at the default.
     if let Some(order) = &lint.declaration_order {
         let names: Vec<String> = order.iter().map(|g| g.name().to_string()).collect();
-        let _ = writeln!(out, "declaration-order = {}", array(&names));
+        put(
+            out,
+            defaults,
+            false,
+            &format!("declaration-order = {}", array(&names)),
+        );
     }
-    let _ = writeln!(out, "disable = {}", array(&lint.disabled));
+    put(
+        out,
+        defaults,
+        lint.disabled == base.lint.disabled,
+        &format!("disable = {}", array(&lint.disabled)),
+    );
+}
 
-    let _ = writeln!(out, "\n[files]");
-    let _ = writeln!(out, "exclude = {}", array(&effective_exclusions(config)));
-    out
+fn render_files(out: &mut String, config: &Config, defaults: Defaults) {
+    let exclusions = effective_exclusions(config);
+    let untouched = exclusions.iter().eq(crate::DEFAULT_EXCLUDED_DIRS.iter());
+    put(
+        out,
+        defaults,
+        untouched,
+        &format!("exclude = {}", array(&exclusions)),
+    );
 }
 
 /// What the walker will actually skip, which is the defaults when nothing was

@@ -351,9 +351,112 @@ fn a_named_config_is_read_from_wherever_it_is() {
 }
 
 #[test]
+fn init_carries_gdtoolkit_settings_across_without_losing_any() {
+    // The whole point of the command. A shell redirect could not do this:
+    // `gdck config > gdck.toml` has the shell create the file first, gdck then
+    // finds an empty `gdck.toml`, which beats a `gdlintrc` outright, and writes
+    // the defaults over the settings it was run to keep.
+    let sandbox = Sandbox::new("init-carries");
+    sandbox.write("a.gd", CLEAN);
+    sandbox.write(
+        ".gdlintrc",
+        "max-line-length: 120\nmax-public-methods: 40\ndisable:\n  - max-returns\n",
+    );
+
+    let before = gdck()
+        .arg("config")
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+
+    gdck().arg("init").arg(&sandbox.root).assert().success();
+
+    // The settings in force must be the same ones, now that the gdck.toml is
+    // what answers for them rather than the gdlintrc.
+    let after = gdck()
+        .arg("config")
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+    assert_eq!(text(&before.stdout), text(&after.stdout));
+
+    let written = sandbox.read("gdck.toml");
+    assert!(written.contains("max-line-length = 120"), "{written}");
+    assert!(written.contains("max-public-methods = 40"), "{written}");
+    // What the project did not choose stays commented, so the live lines are
+    // its decisions and a later change to a default still reaches it.
+    assert!(written.contains("# max-returns = 6"), "{written}");
+    assert!(written.contains("# line-length = 100"), "{written}");
+}
+
+#[test]
+fn init_refuses_to_overwrite_without_force() {
+    let sandbox = Sandbox::new("init-force");
+    sandbox.write("a.gd", CLEAN);
+    sandbox.write("gdck.toml", "[lint]\nmax-returns = 3\n");
+
+    let refused = gdck()
+        .arg("init")
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(text(&refused.stderr).contains("--force"));
+    // Untouched, which is the part that matters.
+    assert_eq!(sandbox.read("gdck.toml"), "[lint]\nmax-returns = 3\n");
+
+    gdck()
+        .args(["init", "--force"])
+        .arg(&sandbox.root)
+        .assert()
+        .success();
+    assert!(sandbox.read("gdck.toml").contains("max-returns = 3"));
+}
+
+#[test]
+fn init_says_what_it_could_not_carry_across() {
+    // A setting gdtoolkit has and gdck does not is named before the file is
+    // written. Migrating quietly past one is how a project ends up governed by
+    // rules it thought it had set.
+    let sandbox = Sandbox::new("init-notes");
+    sandbox.write("a.gd", CLEAN);
+    sandbox.write(".gdlintrc", "max-locals: 15\n");
+
+    let output = gdck()
+        .arg("init")
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+    assert!(output.status.success());
+    assert!(
+        text(&output.stderr).contains("max-locals"),
+        "{:?}",
+        text(&output.stderr)
+    );
+}
+
+#[test]
+fn init_can_start_from_the_defaults_instead() {
+    let sandbox = Sandbox::new("init-defaults");
+    sandbox.write("a.gd", CLEAN);
+    sandbox.write(".gdlintrc", "max-line-length: 120\n");
+
+    gdck()
+        .args(["init", "--no-config"])
+        .arg(&sandbox.root)
+        .assert()
+        .success();
+
+    let written = sandbox.read("gdck.toml");
+    assert!(written.contains("# max-line-length = 100"), "{written}");
+    assert!(!written.contains("\nmax-line-length = 120"), "{written}");
+}
+
+#[test]
 fn config_prints_a_gdck_toml_that_can_be_read_back() {
-    // `gdck config > gdck.toml` has to produce a file gdck accepts, or the
-    // documented way to write one is a trap.
+    // `gdck config` is the other question — what a run is using — and its
+    // output still has to be a file gdck accepts. `gdck init` is the way to
+    // write one; see `init_carries_gdtoolkit_settings_across_without_losing_any`.
     let sandbox = Sandbox::new("config-round-trip");
     sandbox.write("a.gd", CLEAN);
 
