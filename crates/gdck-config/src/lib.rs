@@ -104,6 +104,27 @@ pub enum CodeOrderFix {
     Off,
 }
 
+/// Which convention the `file-name` rule holds a file to.
+///
+/// The style guide says snake_case and that is the default. It is also the one
+/// naming rule where a project's own answer is worth honouring rather than
+/// suppressing: a file name is not an identifier the language sees, so a
+/// project that names files after the classes in them is following a
+/// convention rather than breaking one. Saying which is being followed keeps
+/// the rule working, where disabling it stops it noticing anything at all.
+///
+/// Both settings are a convention by name, not a pattern to match. The
+/// alternative — a regular expression, as `gdtoolkit` takes — makes every
+/// project's spelling of "snake_case" subtly its own. See `docs/DESIGN.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FileNameCase {
+    /// `player_controller.gd`, what the guide asks for.
+    #[default]
+    SnakeCase,
+    /// `PlayerController.gd`, matching the class the file holds.
+    PascalCase,
+}
+
 /// Lint options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LintConfig {
@@ -113,6 +134,7 @@ pub struct LintConfig {
     pub max_returns: u32,
     pub max_function_arguments: u32,
     pub code_order: CodeOrderFix,
+    pub file_name: FileNameCase,
     /// Rule names switched off for this project.
     pub disabled: Vec<String>,
 }
@@ -126,6 +148,7 @@ impl Default for LintConfig {
             max_returns: 6,
             max_function_arguments: 10,
             code_order: CodeOrderFix::default(),
+            file_name: FileNameCase::default(),
             disabled: Vec::new(),
         }
     }

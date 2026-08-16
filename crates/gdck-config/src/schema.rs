@@ -17,7 +17,7 @@
 use serde::Deserialize;
 use toml::Spanned;
 
-use crate::{CodeOrderFix, Config, IndentStyle, Problem};
+use crate::{CodeOrderFix, Config, FileNameCase, IndentStyle, Problem};
 
 /// Every key `gdck.toml` accepts, in the order [`to_toml`] writes them.
 ///
@@ -35,6 +35,7 @@ pub(crate) const KEYS: &[&str] = &[
     "lint.max-returns",
     "lint.max-arguments",
     "lint.code-order",
+    "lint.file-name",
     "lint.disable",
     "files.exclude",
 ];
@@ -87,6 +88,8 @@ struct LintTable {
     max_arguments: Option<u32>,
     #[serde(alias = "code_order")]
     code_order: Option<CodeOrder>,
+    #[serde(alias = "file_name")]
+    file_name: Option<FileName>,
     disable: Option<Vec<String>>,
 }
 
@@ -109,6 +112,23 @@ enum CodeOrder {
     Report,
     FixWhenSafe,
     Off,
+}
+
+/// Named conventions rather than patterns; see [`FileNameCase`].
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum FileName {
+    SnakeCase,
+    PascalCase,
+}
+
+impl From<FileName> for FileNameCase {
+    fn from(case: FileName) -> Self {
+        match case {
+            FileName::SnakeCase => Self::SnakeCase,
+            FileName::PascalCase => Self::PascalCase,
+        }
+    }
 }
 
 impl From<CodeOrder> for CodeOrderFix {
@@ -146,6 +166,9 @@ pub(crate) fn read(text: &str) -> Result<Config, Problem> {
     }
     if let Some(order) = file.lint.code_order {
         config.lint.code_order = order.into();
+    }
+    if let Some(case) = file.lint.file_name {
+        config.lint.file_name = case.into();
     }
     if let Some(disable) = file.lint.disable {
         config.lint.disabled = disable;
@@ -339,6 +362,11 @@ pub(crate) fn to_toml(config: &Config) -> String {
         CodeOrderFix::Off => "off",
     };
     let _ = writeln!(out, "code-order = {}", quoted(order));
+    let case = match lint.file_name {
+        FileNameCase::SnakeCase => "snake-case",
+        FileNameCase::PascalCase => "pascal-case",
+    };
+    let _ = writeln!(out, "file-name = {}", quoted(case));
     let _ = writeln!(out, "disable = {}", array(&lint.disabled));
 
     let _ = writeln!(out, "\n[files]");
@@ -520,6 +548,22 @@ mod tests {
     }
 
     #[test]
+    fn a_project_can_name_the_file_convention_it_keeps() {
+        let config = read("[lint]\nfile-name = \"pascal-case\"\n").expect("should read");
+        assert_eq!(config.lint.file_name, FileNameCase::PascalCase);
+        // The underscored spelling is accepted wherever the kebab one is.
+        let config = read("[lint]\nfile_name = \"snake-case\"\n").expect("should read");
+        assert_eq!(config.lint.file_name, FileNameCase::SnakeCase);
+        // And a convention nobody keeps is an error naming the two that exist.
+        let reported = message("[lint]\nfile-name = \"kebab-case\"\n");
+        assert!(
+            reported.contains("unknown variant `kebab-case`"),
+            "{reported}"
+        );
+        assert!(reported.contains("pascal-case"), "{reported}");
+    }
+
+    #[test]
     fn a_syntax_error_is_reported_as_one() {
         assert!(read("[format\n").is_err());
         assert!(read("line-length = = 1\n").is_err());
@@ -552,6 +596,7 @@ mod tests {
                 max_returns: 3,
                 max_function_arguments: 5,
                 code_order: CodeOrderFix::Off,
+                file_name: FileNameCase::PascalCase,
                 disabled: vec!["max-returns".to_string()],
             },
             excluded_dirs: vec!["vendor".to_string()],

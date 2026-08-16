@@ -11,7 +11,12 @@
 //! | `signal-name` | `signal x` | `snake_case` |
 //! | `enum-name` | `enum X` | `PascalCase` |
 //! | `enum-member-name` | enum members | `CONSTANT_CASE` |
-//! | `file-name` | the file itself | `snake_case` |
+//! | `file-name` | the file itself | `snake_case`, or `PascalCase` by setting `lint.file-name` |
+//!
+//! Every convention above is fixed except the last, which is the only one
+//! whose subject the language never sees. A file name is not an identifier, so
+//! a project naming files after the classes in them has a convention of its
+//! own rather than a mistake, and can say so.
 //!
 //! Two things soften that table, both from the guide itself.
 //!
@@ -30,6 +35,7 @@
 //! in the editor — so a rename is a decision for a person with a project-wide
 //! search in front of them.
 
+use gdck_config::FileNameCase;
 use gdck_syntax::{SyntaxKind, SyntaxNode, TextRange};
 
 use super::{Context, Sink, callee_name, name_token, unwrap_parens};
@@ -199,6 +205,12 @@ fn holds_a_class(context: &Context<'_>, decl: SyntaxNode<'_>) -> bool {
 }
 
 /// The file itself is named like a variable, and after the class it holds.
+///
+/// Unless the project says otherwise. This is the one naming rule whose
+/// subject the language never sees — a file name is not an identifier — and a
+/// project that names files after their classes is keeping a convention rather
+/// than failing to. `lint.file-name` says which one, and the rule goes on
+/// working either way; switching it off would only stop it noticing anything.
 fn check_file_name(context: &Context<'_>, sink: &mut Sink) {
     let Some(file_name) = context.file_name else {
         return;
@@ -208,7 +220,11 @@ fn check_file_name(context: &Context<'_>, sink: &mut Sink) {
         // it to.
         return;
     };
-    if names::is_private_snake_case(stem) {
+    let (matches, wanted) = match context.config.file_name {
+        FileNameCase::SnakeCase => (names::is_private_snake_case(stem), "snake_case"),
+        FileNameCase::PascalCase => (names::is_private_pascal_case(stem), "PascalCase"),
+    };
+    if matches {
         return;
     }
     // The whole file is the subject, so anchor at its first byte rather than
@@ -216,7 +232,7 @@ fn check_file_name(context: &Context<'_>, sink: &mut Sink) {
     sink.report(
         "file-name",
         TextRange::empty(0),
-        format!("file name `{file_name}` should be snake_case"),
+        format!("file name `{file_name}` should be {wanted}"),
     );
 }
 
@@ -356,6 +372,45 @@ mod tests {
         let found = crate::lint_file(&tree, &config, Some("YAMLParser.gd"));
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].rule, "file-name");
+    }
+
+    /// A project that names files after their classes says so, and keeps the
+    /// rule rather than turning it off — the point being that it still catches
+    /// the file that follows neither convention.
+    #[test]
+    fn a_project_can_ask_for_pascal_case_file_names() {
+        let tree = gdck_syntax::parse("extends Node\n");
+        let config = LintConfig {
+            file_name: gdck_config::FileNameCase::PascalCase,
+            ..LintConfig::default()
+        };
+        assert!(crate::lint_file(&tree, &config, Some("GdUnitCmdTool.gd")).is_empty());
+        assert!(crate::lint_file(&tree, &config, Some("RPCMessage.gd")).is_empty());
+
+        let found = crate::lint_file(&tree, &config, Some("yaml_parser.gd"));
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].rule, "file-name");
+        assert!(
+            found[0].message.contains("PascalCase"),
+            "the message should name the convention the project chose, got {:?}",
+            found[0].message
+        );
+    }
+
+    /// Neither setting has an opinion about a file that is not GDScript.
+    #[test]
+    fn a_file_name_setting_only_applies_to_gd_files() {
+        let tree = gdck_syntax::parse("extends Node\n");
+        for case in [
+            gdck_config::FileNameCase::SnakeCase,
+            gdck_config::FileNameCase::PascalCase,
+        ] {
+            let config = LintConfig {
+                file_name: case,
+                ..LintConfig::default()
+            };
+            assert!(crate::lint_file(&tree, &config, Some("README.md")).is_empty());
+        }
     }
 
     #[test]

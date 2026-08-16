@@ -53,6 +53,7 @@ max-public-methods = 20
 max-returns = 6
 max-arguments = 10
 code-order = "report"    # "report" | "fix-when-safe" | "off"
+file-name = "snake-case" # "snake-case" | "pascal-case"
 disable = []
 
 [files]
@@ -86,7 +87,19 @@ limit the `max-returns` rule reports on. The rules themselves are in
 | `max-returns` | How many `return` statements one function may hold. |
 | `max-arguments` | How many parameters one function may take. |
 | `code-order` | `"report"` names ordering problems and leaves `--fix-order` to apply them; `"fix-when-safe"` reorders whenever `gdck fix` runs and the moves are provably safe; `"off"` says nothing about order at all. |
+| `file-name` | Which convention `file-name` holds a file to. `"snake-case"` is the style guide's answer; `"pascal-case"` suits a project that names files after the classes in them. |
 | `disable` | Rule names switched off for the whole project. `gdtoolkit`'s names work here too. |
+
+`file-name` is the only naming rule that takes a setting, and it is worth
+saying why the others do not. Every other name the rules check is an
+identifier, which the language and the style guide both have a settled view
+about. A file name is neither — Godot does not care, and a project that names
+`PlayerController.gd` after the class inside it is keeping a convention rather
+than failing to keep one.
+
+Naming the convention is better than switching the rule off with `disable`,
+which is the other way to stop 55 reports: the rule carries on working, so a
+file that follows neither convention is still caught.
 
 `disable` naming a rule that does not exist is a warning rather than an error,
 so one file can be shared between `gdck` versions — but it does say so, because
