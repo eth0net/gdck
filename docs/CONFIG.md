@@ -84,7 +84,7 @@ disable = []
 
 [files]
 exclude = [".git", ".godot", ".import", "addons"]
-# extend-exclude adds to that list; it is the one you usually want.
+respect-gitignore = true
 ```
 
 ### `[format]`
@@ -188,41 +188,66 @@ To switch a rule off for one line or one region instead, see
 
 ### `[files]`
 
-Both keys are lists of directory *names* skipped when walking a directory.
-
 | Key | Meaning |
 |---|---|
-| `exclude` | The set of names to skip, **replacing** the defaults. |
-| `extend-exclude` | Names to skip **as well as** whatever `exclude` left. |
+| `exclude` | Directory *names* skipped when walking, replacing the defaults. |
+| `respect-gitignore` | Skip what a `.gitignore` covers. On by default. |
 
-Reach for `extend-exclude` to add one directory, which is nearly always what is
-wanted:
-
-```toml
-[files]
-extend-exclude = ["vendor"]
-# skips .git, .godot, .import, addons, vendor
-```
-
-`exclude` on its own replaces the lot, so this is a different thing and usually
-a mistake:
+`exclude` **replaces** the defaults rather than adding to them, so name the ones
+you still want:
 
 ```toml
 [files]
-exclude = ["vendor"]
-# skips vendor — and now walks .godot, which is Godot's generated import cache
+exclude = [".git", ".godot", ".import", "addons", "vendor"]
 ```
 
-Writing both is not a contradiction. `exclude` says what the set is and
-`extend-exclude` adds to *that*, so a project deliberately narrowing the
-defaults still gets what it asked for:
+Replacing is what makes it possible to *narrow* the list, which some projects
+need: an addon's own source lives in `addons`, which the defaults skip, and
+there has to be a way to say so.
 
 ```toml
 [files]
-exclude = [".git"]
-extend-exclude = ["vendor"]
-# skips .git and vendor, and nothing else
+exclude = [".git"]   # an addon linting its own source
 ```
+
+Easiest is not to write it by hand. `gdck init` puts the effective list in the
+file, so you edit one array that already names everything:
+
+```toml
+[files]
+# exclude = [".git", ".godot", ".import", "addons"]
+```
+
+Most of what a project would otherwise add here — `build`, `export`, `.godot`
+itself — is already covered by `respect-gitignore` below.
+
+#### `respect-gitignore`
+
+On by default. A `.gd` file git has been told to ignore is almost always
+generated or vendored, so reporting on it is noise about code nobody is going
+to edit.
+
+```toml
+[files]
+respect-gitignore = false
+```
+
+`--no-gitignore` turns it off for one run.
+
+Every mechanism git itself has is honoured, so what `gdck` skips is what
+`git status` leaves out: the nearest `.gitignore` and every one above it,
+nested files deeper in the tree, `!` negations, `.git/info/exclude`, and your
+global ignore file. A directory with a `.gitignore` but no `.git` is still
+read, since an export or a vendored copy meant what its file says.
+
+This is a second filter rather than a replacement for `exclude`, and a file has
+to pass both. Neither covers the other: `addons` is committed, so no
+`.gitignore` mentions it, and a `build/` directory is ignored without being a
+name anybody listed.
+
+A path named directly on the command line is processed whatever the ignore
+files say — `gdck format build/generated.gd` does what you asked — on the same
+principle as the exclusions.
 
 A path named directly on the command line is always processed, whatever this
 says — `gdck format addons/thing.gd` does what you asked.
