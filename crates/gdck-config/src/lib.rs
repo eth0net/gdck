@@ -104,6 +104,78 @@ pub enum CodeOrderFix {
     Off,
 }
 
+/// The groups a project may put in an order of its own.
+///
+/// This is `gdtoolkit`'s vocabulary rather than `gdck`'s, deliberately: it
+/// exists so a project that pinned `class-definitions-order` in a `gdlintrc`
+/// keeps the order it chose. `gdck` sorts more finely than these fourteen
+/// names can express — it knows `_ready()` from `_process()` from a static
+/// function, where `gdtoolkit` has only `others` — and that finer order is
+/// kept *within* whichever position `Others` is given.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeclarationGroup {
+    Tools,
+    ClassNames,
+    Extends,
+    Docstrings,
+    Signals,
+    Enums,
+    Consts,
+    Exports,
+    PubVars,
+    PrvVars,
+    OnreadyPubVars,
+    OnreadyPrvVars,
+    StaticVars,
+    Others,
+}
+
+impl DeclarationGroup {
+    /// The `gdtoolkit` spelling, which is also `gdck`'s.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Tools => "tools",
+            Self::ClassNames => "classnames",
+            Self::Extends => "extends",
+            Self::Docstrings => "docstrings",
+            Self::Enums => "enums",
+            Self::Signals => "signals",
+            Self::Consts => "consts",
+            Self::Exports => "exports",
+            Self::PubVars => "pubvars",
+            Self::PrvVars => "prvvars",
+            Self::OnreadyPubVars => "onreadypubvars",
+            Self::OnreadyPrvVars => "onreadyprvvars",
+            Self::StaticVars => "staticvars",
+            Self::Others => "others",
+        }
+    }
+
+    /// Read one from the name `gdtoolkit` uses for it.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::Tools,
+            Self::ClassNames,
+            Self::Extends,
+            Self::Docstrings,
+            Self::Signals,
+            Self::Enums,
+            Self::Consts,
+            Self::Exports,
+            Self::PubVars,
+            Self::PrvVars,
+            Self::OnreadyPubVars,
+            Self::OnreadyPrvVars,
+            Self::StaticVars,
+            Self::Others,
+        ]
+        .into_iter()
+        .find(|group| group.name() == name)
+    }
+}
+
 /// Which convention the `file-name` rule holds a file to.
 ///
 /// The style guide says snake_case and that is the default. It is also the one
@@ -135,6 +207,12 @@ pub struct LintConfig {
     pub max_function_arguments: u32,
     pub code_order: CodeOrderFix,
     pub file_name: FileNameCase,
+    /// A declaration order of the project's own, if it stated one.
+    ///
+    /// `None` means the style guide's, which is what `gdck` sorts by and what
+    /// its own buckets are named after. A project that pinned
+    /// `class-definitions-order` in a `gdlintrc` gets that order instead.
+    pub declaration_order: Option<Vec<DeclarationGroup>>,
     /// Rule names switched off for this project.
     pub disabled: Vec<String>,
 }
@@ -149,6 +227,7 @@ impl Default for LintConfig {
             max_function_arguments: 10,
             code_order: CodeOrderFix::default(),
             file_name: FileNameCase::default(),
+            declaration_order: None,
             disabled: Vec::new(),
         }
     }

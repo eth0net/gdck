@@ -20,7 +20,7 @@
 
 use yaml_serde::Value;
 
-use crate::{Config, IndentStyle, Problem};
+use crate::{Config, DeclarationGroup, IndentStyle, Problem};
 
 /// Apply a `gdlintrc` to a configuration, returning what could not be honoured.
 pub(crate) fn apply_gdlintrc(text: &str, config: &mut Config) -> Result<Vec<Problem>, Problem> {
@@ -46,17 +46,40 @@ pub(crate) fn apply_gdlintrc(text: &str, config: &mut Config) -> Result<Vec<Prob
                 }
                 None => Some(wanted(&item, "a list of directory names")),
             },
-            // The order is the style guide's, and it is not configurable —
-            // `code-order` is the guide's rule rather than a project's taste.
-            "class-definitions-order" => item.strings().and_then(|order| {
-                (order != DEFAULT_DEFINITIONS_ORDER).then(|| {
-                    note(
-                        &item,
-                        "gdck orders declarations the way the style guide does; \
-                         `class-definitions-order` is not applied",
-                    )
-                })
-            }),
+            // A project that pinned an order gets to keep it. `gdck` sorts
+            // more finely than these names can express, and that finer order
+            // is kept inside whatever position `others` was given.
+            "class-definitions-order" => match item.strings() {
+                Some(order) if order == DEFAULT_DEFINITIONS_ORDER => None,
+                Some(order) => {
+                    let groups: Option<Vec<_>> = order
+                        .iter()
+                        .map(|name| DeclarationGroup::from_name(name))
+                        .collect();
+                    if let Some(groups) = groups {
+                        config.lint.declaration_order = Some(groups);
+                        None
+                    } else {
+                        // One name nobody recognises makes the whole sequence a
+                        // guess, and guessing at an order is worse than saying
+                        // so and using the guide's.
+                        let unknown: Vec<&str> = order
+                            .iter()
+                            .filter(|name| DeclarationGroup::from_name(name).is_none())
+                            .map(String::as_str)
+                            .collect();
+                        Some(note(
+                            &item,
+                            format!(
+                                "`class-definitions-order` names `{}`, which gdck has no \
+                                 group for; the style guide's order is used instead",
+                                unknown.join("`, `")
+                            ),
+                        ))
+                    }
+                }
+                None => Some(wanted(&item, "a list of declaration group names")),
+            },
             "tab-characters" => (item.integer() != Some(1)).then(|| {
                 note(
                     &item,
@@ -488,14 +511,29 @@ mod tests {
     }
 
     #[test]
-    fn a_reordered_definitions_order_is_reported() {
-        let (_, notes) = lint("class-definitions-order:\n  - enums\n  - signals\n");
-        assert_eq!(notes.len(), 1);
-        assert!(notes[0].contains("style guide"), "{notes:?}");
-        // The default order is the one gdck implements, so it says nothing.
-        let default = written_order();
-        let (_, notes) = lint(&format!("class-definitions-order:\n{default}"));
+    fn a_reordered_definitions_order_is_kept() {
+        let (config, notes) = lint("class-definitions-order:\n  - enums\n  - signals\n");
         assert!(notes.is_empty(), "{notes:?}");
+        assert_eq!(
+            config.lint.declaration_order,
+            Some(vec![DeclarationGroup::Enums, DeclarationGroup::Signals])
+        );
+        // The default order is the one gdck sorts by, so it needs no override
+        // and says nothing.
+        let default = written_order();
+        let (config, notes) = lint(&format!("class-definitions-order:\n{default}"));
+        assert!(notes.is_empty(), "{notes:?}");
+        assert_eq!(config.lint.declaration_order, None);
+    }
+
+    /// A name nobody recognises makes the whole sequence a guess, so the guide's
+    /// order stands and the reader is told which name was the problem.
+    #[test]
+    fn an_unknown_declaration_group_is_reported_and_not_guessed_at() {
+        let (config, notes) = lint("class-definitions-order:\n  - enums\n  - widgets\n");
+        assert_eq!(notes.len(), 1);
+        assert!(notes[0].contains("widgets"), "{notes:?}");
+        assert_eq!(config.lint.declaration_order, None);
     }
 
     #[test]

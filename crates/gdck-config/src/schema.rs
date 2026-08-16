@@ -17,7 +17,25 @@
 use serde::Deserialize;
 use toml::Spanned;
 
-use crate::{CodeOrderFix, Config, FileNameCase, IndentStyle, Problem};
+use crate::{CodeOrderFix, Config, DeclarationGroup, FileNameCase, IndentStyle, Problem};
+
+/// Named in the error when a declaration group is misspelled.
+const DECLARATION_GROUPS: &[&str] = &[
+    "tools",
+    "classnames",
+    "extends",
+    "docstrings",
+    "signals",
+    "enums",
+    "consts",
+    "staticvars",
+    "exports",
+    "pubvars",
+    "prvvars",
+    "onreadypubvars",
+    "onreadyprvvars",
+    "others",
+];
 
 /// Every key `gdck.toml` accepts, in the order [`to_toml`] writes them.
 ///
@@ -36,6 +54,7 @@ pub(crate) const KEYS: &[&str] = &[
     "lint.max-arguments",
     "lint.code-order",
     "lint.file-name",
+    "lint.declaration-order",
     "lint.disable",
     "files.exclude",
 ];
@@ -90,6 +109,8 @@ struct LintTable {
     code_order: Option<CodeOrder>,
     #[serde(alias = "file_name")]
     file_name: Option<FileName>,
+    #[serde(alias = "declaration_order")]
+    declaration_order: Option<Vec<Spanned<String>>>,
     disable: Option<Vec<String>>,
 }
 
@@ -169,6 +190,23 @@ pub(crate) fn read(text: &str) -> Result<Config, Problem> {
     }
     if let Some(case) = file.lint.file_name {
         config.lint.file_name = case.into();
+    }
+    if let Some(order) = file.lint.declaration_order {
+        let mut groups = Vec::with_capacity(order.len());
+        for name in order {
+            let Some(group) = DeclarationGroup::from_name(name.get_ref()) else {
+                return Err(Problem {
+                    line: line_of(text, name.span().start),
+                    message: format!(
+                        "`{}` is not a declaration group; the groups are {}",
+                        name.get_ref(),
+                        DECLARATION_GROUPS.join(", ")
+                    ),
+                });
+            };
+            groups.push(group);
+        }
+        config.lint.declaration_order = Some(groups);
     }
     if let Some(disable) = file.lint.disable {
         config.lint.disabled = disable;
@@ -367,6 +405,10 @@ pub(crate) fn to_toml(config: &Config) -> String {
         FileNameCase::PascalCase => "pascal-case",
     };
     let _ = writeln!(out, "file-name = {}", quoted(case));
+    if let Some(order) = &lint.declaration_order {
+        let names: Vec<String> = order.iter().map(|g| g.name().to_string()).collect();
+        let _ = writeln!(out, "declaration-order = {}", array(&names));
+    }
     let _ = writeln!(out, "disable = {}", array(&lint.disabled));
 
     let _ = writeln!(out, "\n[files]");
@@ -597,6 +639,11 @@ mod tests {
                 max_function_arguments: 5,
                 code_order: CodeOrderFix::Off,
                 file_name: FileNameCase::PascalCase,
+                declaration_order: Some(vec![
+                    DeclarationGroup::Tools,
+                    DeclarationGroup::Extends,
+                    DeclarationGroup::Others,
+                ]),
                 disabled: vec!["max-returns".to_string()],
             },
             excluded_dirs: vec!["vendor".to_string()],

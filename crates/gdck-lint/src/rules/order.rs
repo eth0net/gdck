@@ -20,6 +20,7 @@
 
 use std::collections::HashSet;
 
+use gdck_config::{DeclarationGroup, LintConfig};
 use gdck_syntax::{SyntaxKind, SyntaxNode, TextRange};
 
 use super::{Context, Sink, class_bodies, name_token, significant_range, significant_tokens};
@@ -98,19 +99,79 @@ pub(crate) fn check(context: &Context<'_>, sink: &mut Sink) {
             .filter_map(|node| Some((node, bucket_of(context, node)?)))
             .collect();
 
-        let mut highest = Bucket::FileAnnotation;
+        // Seeded from the first member rather than from the first bucket:
+        // under a project's own order, the group `gdck` happens to list first
+        // may sort anywhere, and starting from it would report every file.
+        let mut highest: Option<Bucket> = None;
         for (node, bucket) in members {
-            if bucket >= highest {
-                highest = bucket;
+            let Some(top) = highest else {
+                highest = Some(bucket);
+                continue;
+            };
+            if rank(bucket, context.config) >= rank(top, context.config) {
+                highest = Some(bucket);
                 continue;
             }
             sink.report(
                 "code-order",
                 significant_range(node),
-                format!("{} come before {}", bucket.label(), highest.label()),
+                format!("{} come before {}", bucket.label(), top.label()),
             );
         }
     }
+}
+
+/// Which group of `gdtoolkit`'s vocabulary this bucket falls into.
+///
+/// `gdck` sorts more finely than those fourteen names can say, and everything
+/// it knows that they do not — `_ready()` apart from `_process()` apart from a
+/// static function — is `Others` to them.
+fn group_of(bucket: Bucket) -> DeclarationGroup {
+    match bucket {
+        Bucket::FileAnnotation => DeclarationGroup::Tools,
+        Bucket::ClassName => DeclarationGroup::ClassNames,
+        Bucket::Extends => DeclarationGroup::Extends,
+        Bucket::Docstring => DeclarationGroup::Docstrings,
+        Bucket::Signal => DeclarationGroup::Signals,
+        Bucket::Enum => DeclarationGroup::Enums,
+        Bucket::Constant => DeclarationGroup::Consts,
+        Bucket::StaticVar => DeclarationGroup::StaticVars,
+        Bucket::ExportVar => DeclarationGroup::Exports,
+        Bucket::PublicVar => DeclarationGroup::PubVars,
+        Bucket::PrivateVar => DeclarationGroup::PrvVars,
+        Bucket::OnreadyPublicVar => DeclarationGroup::OnreadyPubVars,
+        Bucket::OnreadyPrivateVar => DeclarationGroup::OnreadyPrvVars,
+        Bucket::StaticInit
+        | Bucket::StaticFunc
+        | Bucket::Init
+        | Bucket::EnterTree
+        | Bucket::Ready
+        | Bucket::Process
+        | Bucket::PhysicsProcess
+        | Bucket::Func
+        | Bucket::InnerClass => DeclarationGroup::Others,
+    }
+}
+
+/// Where a bucket sorts, which is the guide's order unless the project stated
+/// one of its own.
+///
+/// The second half of the key is the bucket itself, so the finer order `gdck`
+/// knows survives inside whatever position the project gave the group. Two
+/// buckets in the same group stay in the guide's relative order rather than
+/// becoming interchangeable.
+pub(crate) fn rank(bucket: Bucket, config: &LintConfig) -> (usize, Bucket) {
+    let Some(order) = &config.declaration_order else {
+        return (0, bucket);
+    };
+    let group = group_of(bucket);
+    // A group the project left out sorts after everything it named, rather
+    // than silently taking position zero.
+    let position = order
+        .iter()
+        .position(|named| *named == group)
+        .unwrap_or(order.len());
+    (position, bucket)
 }
 
 /// Which bucket a class member belongs to, or `None` for something the order
@@ -251,7 +312,11 @@ fn reorder_pass(context: &Context<'_>) -> Step {
             .map(|node| bucket_of(context, *node))
             .collect();
 
-        let placed: Vec<Bucket> = buckets.iter().flatten().copied().collect();
+        let placed: Vec<(usize, Bucket)> = buckets
+            .iter()
+            .flatten()
+            .map(|bucket| rank(*bucket, context.config))
+            .collect();
         if placed.windows(2).all(|pair| pair[0] <= pair[1]) {
             continue;
         }
@@ -266,7 +331,7 @@ fn reorder_pass(context: &Context<'_>) -> Step {
         // A stable sort, so declarations that belong to the same group keep
         // the order the author put them in.
         let mut target: Vec<usize> = (0..chunks.len()).collect();
-        target.sort_by_key(|index| chunks[*index].bucket);
+        target.sort_by_key(|index| rank(chunks[*index].bucket, context.config));
 
         if let Some(blocker) = unsafe_move(context, &members, &chunks, &target) {
             return Step::Blocked(blocker);
@@ -630,6 +695,53 @@ mod tests {
     }
 
     // -- Reordering ---------------------------------------------------------
+
+    /// A project's own order is honoured, both when reporting and when
+    /// reordering. `gdtoolkit` lets a project pin `class-definitions-order`,
+    /// and a project that did so had a reason.
+    #[test]
+    fn a_projects_own_declaration_order_is_the_one_checked() {
+        use gdck_config::DeclarationGroup as Group;
+        let source = "enum State { IDLE }\nsignal died\n";
+
+        // The guide puts signals above enums, so this is out of order.
+        let guide = crate::lint(&gdck_syntax::parse(source), &LintConfig::default());
+        assert_eq!(guide.len(), 1);
+        assert_eq!(guide[0].rule, "code-order");
+
+        // A project that asked for enums first is not.
+        let config = LintConfig {
+            declaration_order: Some(vec![Group::Enums, Group::Signals, Group::Others]),
+            ..LintConfig::default()
+        };
+        assert!(crate::lint(&gdck_syntax::parse(source), &config).is_empty());
+
+        // And reordering follows the same order rather than the guide's.
+        let backwards = "signal died\nenum State { IDLE }\n";
+        match crate::reorder(backwards, &config) {
+            crate::Reorder::Reordered(text) => assert_eq!(text, source),
+            other => panic!("expected a reorder, got {other:?}"),
+        }
+    }
+
+    /// `gdtoolkit` has one bucket for every method; `gdck` has nine. Giving
+    /// `others` a position says where they all go, not that they stop being
+    /// ordered among themselves.
+    #[test]
+    fn the_finer_order_survives_inside_others() {
+        use gdck_config::DeclarationGroup as Group;
+        let config = LintConfig {
+            declaration_order: Some(vec![Group::Others, Group::Signals]),
+            ..LintConfig::default()
+        };
+        // `_ready` before `_init` is wrong however `others` is placed.
+        let found = crate::lint(
+            &gdck_syntax::parse("func _ready():\n\tpass\n\n\nfunc _init():\n\tpass\n"),
+            &config,
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].rule, "code-order");
+    }
 
     fn reordered(source: &str) -> String {
         match crate::reorder(source, &LintConfig::default()) {

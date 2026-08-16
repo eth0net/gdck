@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `lint.declaration-order` sets the order `code-order` checks, and a
+  `gdlintrc`'s `class-definitions-order` is read into it rather than reported
+  as something `gdck` will not apply. A project that pinned an order keeps it.
+  What no such setting can change is the order *within* a group: `gdtoolkit`
+  has one `others` bucket for every method and inner class, where `gdck`
+  separates `_init()`, `_ready()`, `_process()`, static functions and the rest.
+  Giving `others` a position says where that run goes; inside it the guide's
+  order stands.
 - `lint.file-name` chooses which convention the `file-name` rule holds a file
   to: `"snake-case"`, as the style guide says and as before, or
   `"pascal-case"` for a project that names files after the classes in them.
