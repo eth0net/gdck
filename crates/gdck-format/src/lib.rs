@@ -333,6 +333,43 @@ mod tests {
     }
 
     #[test]
+    fn a_script_description_stays_with_the_header_it_documents() {
+        // Godot's rule: a `##` block "must immediately precede a script member,
+        // or for script descriptions, be placed at the top of the script". The
+        // blank line under it is what says this one is the script's rather than
+        // the function's, so the guide's two blank lines go *after* it.
+        //
+        // It used to be carried along as the function's leading comment, which
+        // put two blank lines above it and left the author's one below it —
+        // immediately preceding nothing, and no longer at the top either.
+        check(
+            "extends Node\n## Doc.\n\nfunc f() -> void:\n\tpass\n",
+            "extends Node\n## Doc.\n\n\nfunc f() -> void:\n\tpass\n",
+        );
+        check_stable("extends Node\n## Doc.\n\n\nfunc f() -> void:\n\tpass\n");
+    }
+
+    #[test]
+    fn a_comment_touching_its_declaration_still_belongs_to_it() {
+        // The other half of the same rule. With no blank line the comment does
+        // immediately precede the function, so it documents the function and
+        // the spacing belongs above the pair.
+        check(
+            "extends Node\n## Doc.\nfunc f() -> void:\n\tpass\n",
+            "extends Node\n\n\n## Doc.\nfunc f() -> void:\n\tpass\n",
+        );
+    }
+
+    #[test]
+    fn a_detached_comment_between_two_functions_keeps_its_distance() {
+        // Nothing about this is specific to the top of the file: a note written
+        // between two definitions is neither one's, and stays where it was put.
+        check_stable(
+            "extends Node\n\n\nfunc a() -> void:\n\tpass\n\n\n## A note.\n\n\nfunc b() -> void:\n\tpass\n",
+        );
+    }
+
+    #[test]
     fn a_file_level_class_declares_its_parent_on_the_next_line() {
         // The counterpart rule: at file level the two are separate lines.
         check(

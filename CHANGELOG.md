@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A class docstring separated from the declaration below it by a blank line was
+  moved away from both ([#1]). Godot's rule is that a `##` block "must
+  immediately precede a script member, or for script descriptions, be placed at
+  the top of the script", and the blank line an author writes under it is what
+  says which of those it is. The formatter carried it along as the next
+  declaration's leading comment, so a description written tight under `extends`
+  came out two blank lines below it and one blank line above the function —
+  immediately preceding nothing, and no longer at the top either.
+  The safety checks could not catch this: no comment is lost, the tree is
+  unchanged, and the output is stable. Only what the comment documents changes.
+  A comment that does touch its declaration still belongs to it and is unmoved,
+  and the guide's spacing now goes after a detached comment rather than before
+  it. Test-suite files, which document the suite and then leave a blank line
+  before the first `test_` function, were the common shape hit: on one project
+  the number of files the formatter wanted to rewrite fell from 238 to 228.
+
+[#1]: https://github.com/eth0net/gdck/issues/1
+
 ## [0.5.1] - 2026-08-16
 
 One fix: `--fix-order` was refusing whole files over a trailing comment.
