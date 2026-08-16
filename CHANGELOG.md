@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-16
+
+Configuration, mostly. Adopting `gdck` in a project that already used
+`gdtoolkit` meant restating every setting it had, and the documented way to do
+that quietly wrote the defaults over them instead. `gdck init` does it
+properly, and a `gdck.toml` that keeps a `gdlintrc` out now says so.
+
 ### Added
 
 - `gdck init` writes a `gdck.toml`. In a project with a `gdformatrc` or
@@ -313,7 +320,8 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 - `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and
   the planned rule catalogue.
 
-[Unreleased]: https://github.com/eth0net/gdck/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/eth0net/gdck/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/eth0net/gdck/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/eth0net/gdck/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eth0net/gdck/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eth0net/gdck/releases/tag/v0.1.0
