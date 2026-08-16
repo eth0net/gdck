@@ -1,5 +1,9 @@
 # gdck
 
+[![crates.io](https://img.shields.io/crates/v/gdck.svg)](https://crates.io/crates/gdck)
+[![CI](https://github.com/eth0net/gdck/actions/workflows/ci.yml/badge.svg)](https://github.com/eth0net/gdck/actions/workflows/ci.yml)
+[![license](https://img.shields.io/crates/l/gdck.svg)](#license)
+
 A fast GDScript formatter and linter, faithful to the [official GDScript style
 guide][styleguide].
 
@@ -74,10 +78,10 @@ brew install eth0net/tap/gdck
 The installers put `gdck` in `~/.local/bin` and add that to your `PATH` if it
 is not there already. Set `GDCK_INSTALL_DIR` to put it somewhere else.
 
-**From source**, if you have a Rust toolchain:
+**Cargo**, if you already have a Rust toolchain:
 
 ```sh
-cargo install --git https://github.com/eth0net/gdck gdck
+cargo install gdck
 ```
 
 Or take an archive for your platform from
