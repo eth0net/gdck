@@ -173,6 +173,25 @@ inner class, so a report naming two methods is about an order `gdlint` never
 checked rather than one the configuration disagrees with. See
 [CONFIG.md](CONFIG.md#lint).
 
+#### Why a project moving from `gdlint` sees new order reports
+
+`gdlint` has a token for static *variables* and none for static *methods*. In
+`gdtoolkit`'s `linter/class_checks.py`, `static_func_def` and `abstract_func_def`
+both return `"others"` — the same bucket as an ordinary `func_def` — while
+`static_class_var_stmt` returns `"staticvars"`. So `class-definitions-order` can
+place static variables, which are position 08 in the guide, and can say nothing
+at all about `_static_init()` and "remaining static methods", which are 12 and
+13 and belong *before* the virtual callbacks.
+
+Inner classes are the same story from the other end: the guide puts them last,
+at 17, and `gdlint` has no token to say so.
+
+`gdck` checks both, so adopting it on a `gdlint`-clean project surfaces
+orderings nothing had been checking. On the project this was measured against,
+that was 115 reports of a function after an inner class and 32 of a static
+function after an ordinary one — none of them a regression, and none of them
+something a `gdlintrc` could have caught.
+
 Public-before-private is applied to variables, where it is unambiguous, and not
 to methods, where it would contradict the rule above it: a virtual callback is
 private by name and still comes first. The guide itself asked for public before
