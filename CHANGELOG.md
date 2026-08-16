@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `--fix-order` refused whole files over a trailing comment. The parser hands a
+  comment to the token that follows it, so `const A = 1 # why` puts that comment
+  in the *next* declaration's leading trivia; the reorder then took it as that
+  declaration's own start, which dragged its text back onto the previous line
+  and looked like two declarations sharing one. The file was left alone with
+  ``` `X` shares a line with the declaration above it ```, naming a line that
+  was not shared.
+  A comment is now only treated as a declaration's own when nothing but
+  whitespace precedes it on its line. A genuinely shared line — `var a = 1;
+  signal b` — is still refused.
+  On the project this was found on, `--fix-order` went from resolving 66 of 171
+  `code-order` reports to resolving all 171, with no file left blocked. On a
+  second project it went from 767 reports to 92, and every remaining refusal is
+  a real one: 11 files that do not parse, 4 where a variable is initialised from
+  one the move would hoist below it, and 2 genuine shared lines.
+
 ## [0.5.0] - 2026-08-16
 
 `gdck` now skips what your `.gitignore` skips, which is a change to what a run
