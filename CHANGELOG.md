@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `lint.file-name` chooses which convention the `file-name` rule holds a file
+  to: `"snake-case"`, as the style guide says and as before, or
+  `"pascal-case"` for a project that names files after the classes in them.
+  It is the only naming rule that takes a setting, because it is the only one
+  whose subject is not an identifier — Godot has no opinion about what a
+  script is called. Naming the convention keeps the rule working, where
+  `disable = ["file-name"]` stops it noticing anything: a file following
+  neither convention is still reported.
+
 ## [0.2.0] - 2026-08-15
 
 The first release with a working formatter and linter. `0.1.0` was the parser

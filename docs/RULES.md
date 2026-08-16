@@ -59,9 +59,28 @@ And a name that holds a *class* may be `PascalCase` whatever else it is:
 | `signal-name` | `signal x` | `snake_case` | |
 | `enum-name` | `enum X` | `PascalCase` | |
 | `enum-member-name` | enum members | `CONSTANT_CASE` | `enum-element-name` |
-| `file-name` | the file itself | `snake_case` | |
+| `file-name` | the file itself | `snake_case`, or `PascalCase` — see below | |
 
 [naming]: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html#naming-conventions
+
+### Choosing the file naming convention
+
+`file-name` is the one naming rule that takes a setting, because it is the one
+whose subject is not an identifier. Godot has no opinion about what a script is
+called, and a project that names `PlayerController.gd` after the class inside it
+is keeping a convention rather than missing one. Say which with
+`lint.file-name`, documented in [CONFIG.md](CONFIG.md#lint):
+
+```toml
+[lint]
+file-name = "pascal-case"
+```
+
+This is better than `disable = ["file-name"]`, which is the other way to stop
+the reports. The rule keeps working, so a file named like neither convention is
+still caught. `gdtoolkit` has no equivalent rule at all, so a project arriving
+from it sees these reports for the first time and is choosing between two
+conventions rather than losing one.
 
 ### Differences from `gdtoolkit`
 

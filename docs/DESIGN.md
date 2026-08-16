@@ -46,7 +46,12 @@ That is the general shape of the argument. A hand-written reader's risk is not
 failing to parse, it is accepting something and *misreading* it, and the files
 here belong to other tools and other people. Something is written here only when
 no crate does the job — which is why the case predicates in `gdck-lint::names`
-stay, the conventions being fixed and unconfigurable.
+stay. A project chooses between named conventions rather than supplying a
+pattern, so there is never a regular expression to compile: `lint.file-name`
+picks one of two spellings, and every other name the rules check is an
+identifier the guide has a settled view about. `gdtoolkit` takes a regex for
+each, which is how a project ends up with its own slightly different idea of
+what snake_case means.
 
 ## The syntax tree
 
