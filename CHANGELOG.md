@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-16
+
+Two trials against real projects drove most of this: a parser bug that
+rejected code Godot compiles, and two rules that told a project its own
+settled conventions were mistakes.
+
 ### Fixed
 
 - `gdck-syntax`: `when` and `match` were refused as names, so real code Godot
@@ -236,6 +242,7 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 - `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and
   the planned rule catalogue.
 
-[Unreleased]: https://github.com/eth0net/gdck/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/eth0net/gdck/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/eth0net/gdck/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eth0net/gdck/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eth0net/gdck/releases/tag/v0.1.0
