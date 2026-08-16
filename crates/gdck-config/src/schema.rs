@@ -60,6 +60,7 @@ pub(crate) const KEYS: &[&str] = &[
     "lint.declaration-order",
     "lint.disable",
     "files.exclude",
+    "files.extend-exclude",
 ];
 
 /// The shape of the file.
@@ -123,6 +124,8 @@ struct LintTable {
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 struct FilesTable {
     exclude: Option<Vec<String>>,
+    #[serde(alias = "extend_exclude")]
+    extend_exclude: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -236,8 +239,21 @@ pub(crate) fn read(text: &str) -> Result<Config, Problem> {
     if let Some(disable) = file.lint.disable {
         config.lint.disabled = disable;
     }
+    // `exclude` replaces, `extend-exclude` adds to whatever is left after it.
+    // Writing both is therefore not a contradiction: the first says what the
+    // set is and the second adds to that, rather than to the defaults.
+    let replaced = file.files.exclude.is_some();
     if let Some(exclude) = file.files.exclude {
         config.excluded_dirs = exclude;
+    }
+    if let Some(extra) = file.files.extend_exclude {
+        if !replaced {
+            config.excluded_dirs = crate::DEFAULT_EXCLUDED_DIRS
+                .iter()
+                .map(|dir| (*dir).to_string())
+                .collect();
+        }
+        config.excluded_dirs.extend(extra);
     }
 
     config.format.indent = indent_of(text, &file.format)?;
@@ -639,6 +655,30 @@ mod tests {
         assert_eq!(config.lint.code_order, CodeOrderFix::WholeFileWhenSafe);
         assert_eq!(config.lint.disabled, ["max-returns", "line-too-long"]);
         assert_eq!(config.excluded_dirs, ["vendor"]);
+    }
+
+    #[test]
+    fn extend_exclude_adds_to_the_defaults_rather_than_replacing_them() {
+        // The reason it exists. `exclude = ["vendor"]` reads as "also skip
+        // vendor" and means "skip only vendor", which quietly starts walking
+        // `.godot` — Godot's generated import cache — and `addons`.
+        let config = read_ok("[files]\nextend-exclude = [\"vendor\"]\n");
+        assert_eq!(
+            config.excluded_dirs,
+            [".git", ".godot", ".import", "addons", "vendor"]
+        );
+        assert!(config.is_excluded_dir(".godot"));
+        assert!(config.is_excluded_dir("vendor"));
+    }
+
+    #[test]
+    fn extend_exclude_adds_to_an_exclude_beside_it_not_to_the_defaults() {
+        // Both together are not a contradiction: the first says what the set
+        // is, the second adds to that. A project narrowing the defaults on
+        // purpose keeps getting what it asked for.
+        let config = read_ok("[files]\nexclude = [\".git\"]\nextend-exclude = [\"vendor\"]\n");
+        assert_eq!(config.excluded_dirs, [".git", "vendor"]);
+        assert!(!config.is_excluded_dir(".godot"));
     }
 
     #[test]

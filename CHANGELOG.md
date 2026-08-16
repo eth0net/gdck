@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `files.extend-exclude` skips directories *as well as* the defaults, where
+  `files.exclude` replaces them. `exclude = ["vendor"]` reads as "also skip
+  vendor" and means "skip only vendor", which quietly started walking `.godot`
+  — Godot's generated import cache — and `addons`. `gdtoolkit` excludes only
+  `.git` by default, so replacing its list costs almost nothing; replacing
+  gdck's costs three directories nobody meant to include.
+  The two compose: `exclude` says what the set is and `extend-exclude` adds to
+  that, so a project deliberately narrowing the defaults still gets what it
+  asked for.
+
+### Documentation
+
+- `docs/CONFIG.md` now says why a `gdlintrc`'s `max-line-length` moves only the
+  linter while a `gdformatrc`'s `line_length` moves both. This was raised as a
+  bug — the formatter "should" widen to match — and checking it against
+  `gdformat` showed the opposite: `gdformat` reads `line_length` from a
+  `gdformatrc` and never looks at a `gdlintrc`, so a project with only a
+  `gdlintrc` has always formatted at 100. Inferring the width would reflow files
+  `gdformat` had left alone, which is the one thing compatibility is for. A
+  differential test against `gdformat` confirms the two agree.
+
 ## [0.4.0] - 2026-08-16
 
 Configuration, mostly. Adopting `gdck` in a project that already used
