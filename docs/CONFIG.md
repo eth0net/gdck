@@ -55,6 +55,7 @@ max-arguments = 10
 code-order = "report"    # "report" | "fix-when-safe" | "off"
 file-name = "snake-case" # "snake-case" | "pascal-case"
 disable = []
+# declaration-order is omitted unless a project sets one; see below.
 
 [files]
 exclude = [".git", ".godot", ".import", "addons"]
@@ -88,7 +89,33 @@ limit the `max-returns` rule reports on. The rules themselves are in
 | `max-arguments` | How many parameters one function may take. |
 | `code-order` | `"report"` names ordering problems and leaves `--fix-order` to apply them; `"fix-when-safe"` reorders whenever `gdck fix` runs and the moves are provably safe; `"off"` says nothing about order at all. |
 | `file-name` | Which convention `file-name` holds a file to. `"snake-case"` is the style guide's answer; `"pascal-case"` suits a project that names files after the classes in them. |
+| `declaration-order` | The order `code-order` checks, as a list of group names. Omitted means the style guide's. |
 | `disable` | Rule names switched off for the whole project. `gdtoolkit`'s names work here too. |
+
+`declaration-order` takes `gdtoolkit`'s fourteen group names, in the order the
+project wants them:
+
+```toml
+[lint]
+declaration-order = [
+  "tools", "classnames", "extends", "docstrings", "signals", "enums",
+  "consts", "exports", "pubvars", "prvvars", "onreadypubvars",
+  "onreadyprvvars", "staticvars", "others",
+]
+```
+
+A `gdlintrc` with `class-definitions-order` is read into this, so a project
+that already pinned an order keeps it without writing anything new.
+
+One thing to know before expecting it to change much. `gdck` sorts methods
+more finely than these names can express: `gdtoolkit` has one `others` bucket
+for every function and inner class, where `gdck` separates `_init()`,
+`_enter_tree()`, `_ready()`, `_process()`, `_physics_process()`, static
+functions and inner classes. Giving `others` a position says where that whole
+run goes; the order *within* it stays the guide's, and nothing in
+`class-definitions-order` can say otherwise. A `code-order` report naming two
+methods is therefore about an order `gdlint` never checked, not one your
+configuration disagrees with.
 
 `file-name` is the only naming rule that takes a setting, and it is worth
 saying why the others do not. Every other name the rules check is an

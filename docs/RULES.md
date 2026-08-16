@@ -165,6 +165,14 @@ So `gdck` orders the five virtual callbacks the guide names by name — `_init`,
 bucket. That reproduces the guide's own worked example exactly, and never claims
 a function is misplaced on a guess about what it overrides.
 
+A project that pinned `class-definitions-order` in a `gdlintrc`, or set
+`lint.declaration-order` in a `gdck.toml`, gets the order it asked for rather
+than the guide's. What it cannot change is the order *inside* a group: the
+fourteen names `gdtoolkit` uses have one `others` bucket for every method and
+inner class, so a report naming two methods is about an order `gdlint` never
+checked rather than one the configuration disagrees with. See
+[CONFIG.md](CONFIG.md#lint).
+
 Public-before-private is applied to variables, where it is unambiguous, and not
 to methods, where it would contradict the rule above it: a virtual callback is
 private by name and still comes first. The guide itself asked for public before
