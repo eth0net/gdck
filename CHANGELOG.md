@@ -36,6 +36,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both shapes converge on the one configured, so this decides a layout rather
   than preserving what was written.
 
+- A `gdck.toml` that keeps a `gdformatrc` or `gdlintrc` from applying now says
+  so, once, naming the settings the two disagree about. The precedence itself is
+  unchanged and deliberate — a project that has written a `gdck.toml` has said
+  what it wants — but doing it in silence was not defensible when `gdck` already
+  speaks up about a single unknown key in a `gdlintrc`.
+  Only a real disagreement is reported, so a project whose two files agree —
+  which is what `gdck init` leaves behind — hears nothing, and the warning
+  cannot become furniture people learn to scroll past. A shadowed file that
+  cannot be parsed is passed over without comment, since it is not governing the
+  run.
+
+### Changed
+
+- `Config`, `FormatConfig` and `LintConfig` are `#[non_exhaustive]`. Both config
+  structs gained a field in consecutive releases, and each of those was a
+  breaking change for anyone constructing one from the published crates. Adding
+  a setting no longer is. Code that built one with a struct literal should start
+  from `Default::default()` and assign the fields it cares about.
+
 ### Fixed
 
 - A comment written between `class_name` and `extends` was dropped by the

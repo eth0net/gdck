@@ -390,6 +390,58 @@ fn init_carries_gdtoolkit_settings_across_without_losing_any() {
 }
 
 #[test]
+fn a_gdck_toml_shadowing_a_gdlintrc_says_so_and_names_what_differs() {
+    // The precedence is deliberate, but doing it in silence is not: gdck says
+    // so for a single unknown key in a gdlintrc, so passing over the whole file
+    // without a word was the odd one out.
+    let sandbox = Sandbox::new("shadowed");
+    sandbox.write("a.gd", CLEAN);
+    sandbox.write(
+        ".gdlintrc",
+        "max-line-length: 120\nmax-public-methods: 40\n",
+    );
+    sandbox.write("gdck.toml", "[lint]\nmax-public-methods = 40\n");
+
+    let output = gdck()
+        .arg("lint")
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains(".gdlintrc"), "{stderr}");
+    // Named, so the fix is a copy rather than a hunt.
+    assert!(stderr.contains("lint.max-line-length"), "{stderr}");
+    // And only what actually differs: this one agrees.
+    assert!(!stderr.contains("lint.max-public-methods"), "{stderr}");
+}
+
+#[test]
+fn a_gdlintrc_that_agrees_is_not_worth_mentioning() {
+    // After `gdck init` both files say the same thing, so there is nothing to
+    // warn about. A warning that survives its own fix is one people learn to
+    // scroll past.
+    let sandbox = Sandbox::new("shadowed-quiet");
+    sandbox.write("a.gd", CLEAN);
+    sandbox.write(
+        ".gdlintrc",
+        "max-line-length: 120\nmax-public-methods: 40\n",
+    );
+
+    gdck().arg("init").arg(&sandbox.root).assert().success();
+
+    let output = gdck()
+        .arg("lint")
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+    assert!(
+        !text(&output.stderr).contains(".gdlintrc"),
+        "{}",
+        text(&output.stderr)
+    );
+}
+
+#[test]
 fn init_refuses_to_overwrite_without_force() {
     let sandbox = Sandbox::new("init-force");
     sandbox.write("a.gd", CLEAN);

@@ -652,10 +652,8 @@ mod tests {
 
     #[test]
     fn a_disabled_rule_reports_nothing() {
-        let config = LintConfig {
-            disabled: vec!["variable-name".to_string()],
-            ..LintConfig::default()
-        };
+        let mut config = LintConfig::default();
+        config.disabled = vec!["variable-name".to_string()];
         let tree = gdck_syntax::parse("var BadName = 1\n");
         assert!(lint(&tree, &config).is_empty());
     }
@@ -663,10 +661,8 @@ mod tests {
     #[test]
     fn a_rule_can_be_disabled_by_its_gdtoolkit_name() {
         // So that a `gdlintrc` carried over from gdtoolkit keeps working.
-        let config = LintConfig {
-            disabled: vec!["class-variable-name".to_string()],
-            ..LintConfig::default()
-        };
+        let mut config = LintConfig::default();
+        config.disabled = vec!["class-variable-name".to_string()];
         let tree = gdck_syntax::parse("var BadName = 1\n");
         assert!(lint(&tree, &config).is_empty());
     }

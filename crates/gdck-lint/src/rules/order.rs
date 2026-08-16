@@ -583,14 +583,13 @@ mod tests {
     /// Only `code-order`, so a fixture written to test ordering does not also
     /// have to satisfy every naming and spacing rule.
     fn config() -> LintConfig {
-        LintConfig {
-            disabled: crate::RULES
-                .iter()
-                .map(|rule| rule.name.to_string())
-                .filter(|name| name != "code-order")
-                .collect(),
-            ..LintConfig::default()
-        }
+        let mut config = LintConfig::default();
+        config.disabled = crate::RULES
+            .iter()
+            .map(|rule| rule.name.to_string())
+            .filter(|name| name != "code-order")
+            .collect();
+        config
     }
 
     fn diagnostics(source: &str) -> Vec<Diagnostic> {
@@ -710,10 +709,8 @@ mod tests {
         assert_eq!(guide[0].rule, "code-order");
 
         // A project that asked for enums first is not.
-        let config = LintConfig {
-            declaration_order: Some(vec![Group::Enums, Group::Signals, Group::Others]),
-            ..LintConfig::default()
-        };
+        let mut config = LintConfig::default();
+        config.declaration_order = Some(vec![Group::Enums, Group::Signals, Group::Others]);
         assert!(crate::lint(&gdck_syntax::parse(source), &config).is_empty());
 
         // And reordering follows the same order rather than the guide's.
@@ -730,10 +727,8 @@ mod tests {
     #[test]
     fn the_finer_order_survives_inside_others() {
         use gdck_config::DeclarationGroup as Group;
-        let config = LintConfig {
-            declaration_order: Some(vec![Group::Others, Group::Signals]),
-            ..LintConfig::default()
-        };
+        let mut config = LintConfig::default();
+        config.declaration_order = Some(vec![Group::Others, Group::Signals]);
         // `_ready` before `_init` is wrong however `others` is placed.
         let found = crate::lint(
             &gdck_syntax::parse("func _ready():\n\tpass\n\n\nfunc _init():\n\tpass\n"),
@@ -877,10 +872,8 @@ mod tests {
 
     #[test]
     fn the_rule_can_be_switched_off_entirely() {
-        let config = LintConfig {
-            code_order: CodeOrderFix::Off,
-            ..config()
-        };
+        let mut config = config();
+        config.code_order = CodeOrderFix::Off;
         let tree = gdck_syntax::parse("var health = 1\n\nsignal died\n");
         assert!(crate::lint(&tree, &config).is_empty());
     }

@@ -92,6 +92,7 @@ pub enum ClassDeclaration {
 
 /// Formatting options.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FormatConfig {
     /// Hard wrap width. The style guide says keep lines under 100 characters.
     pub line_length: u16,
@@ -227,6 +228,7 @@ pub enum FileNameCase {
 
 /// Lint options.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LintConfig {
     pub max_line_length: u16,
     pub max_file_lines: u32,
@@ -279,6 +281,7 @@ pub mod naming {
 
 /// The full configuration for a run.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct Config {
     pub format: FormatConfig,
     pub lint: LintConfig,
@@ -384,6 +387,9 @@ pub struct Loaded {
 
 // -- discovery and loading --------------------------------------------------
 
+/// One of the `gdtoolkit` readers: settings in, notes out.
+type Reader = fn(&str, &mut Config) -> Result<Vec<Problem>, Problem>;
+
 /// Find the nearest `gdck.toml`, searching `start` and then each ancestor.
 ///
 /// Returns `None` when the search reaches the filesystem root without a match,
@@ -416,11 +422,10 @@ pub fn discover_named(start: &Path, names: &[&str]) -> Option<PathBuf> {
 /// when there is no `gdck.toml` are `gdformatrc` and `gdlintrc` read, so a
 /// project already set up for `gdtoolkit` keeps its settings.
 pub fn resolve(start: &Path) -> Result<Loaded, Error> {
-    /// One of the `gdtoolkit` readers: settings in, notes out.
-    type Reader = fn(&str, &mut Config) -> Result<Vec<Problem>, Problem>;
-
     if let Some(path) = discover(start) {
-        return load(&path);
+        let mut loaded = load(&path)?;
+        loaded.notes.extend(shadowed_notes(start, &loaded.config));
+        return Ok(loaded);
     }
 
     let mut loaded = Loaded::default();
@@ -440,6 +445,106 @@ pub fn resolve(start: &Path) -> Result<Loaded, Error> {
         loaded.files.push(path);
     }
     Ok(loaded)
+}
+
+/// Note any `gdtoolkit` file whose settings a `gdck.toml` is keeping out.
+///
+/// The precedence itself is deliberate and stays: a project that has written a
+/// `gdck.toml` has said what it wants. What is not defensible is doing it
+/// silently, which is how a project ends up governed by rules it thought it had
+/// set — `gdck` says so for a single unknown key in a `gdlintrc`, so passing
+/// over the whole file without a word was the odd one out.
+///
+/// Only a file that would actually *change* something is reported. After
+/// `gdck init` has carried the settings across, both files say the same thing
+/// and there is nothing to warn about, so the warning does not become a
+/// permanent fixture that teaches people to ignore it.
+///
+/// A shadowed file that cannot be read or parsed is passed over in silence. It
+/// is not governing this run, so it cannot mislead anyone about it, and failing
+/// a run over a file it is not using would be worse.
+fn shadowed_notes(start: &Path, active: &Config) -> Vec<Note> {
+    let mut notes = Vec::new();
+    let readers: [(&[&str], Reader); 2] = [
+        (GDFORMAT_FILE_NAMES, compat::apply_gdformatrc),
+        (GDLINT_FILE_NAMES, compat::apply_gdlintrc),
+    ];
+
+    let mut would_be = Config::default();
+    let mut found = Vec::new();
+    for (names, apply) in readers {
+        let Some(path) = discover_named(start, names) else {
+            continue;
+        };
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        if apply(&text, &mut would_be).is_err() {
+            continue;
+        }
+        found.push(path);
+    }
+    if found.is_empty() {
+        return notes;
+    }
+
+    let changed = differences(active, &would_be);
+    if changed.is_empty() {
+        return notes;
+    }
+
+    for path in found {
+        notes.push(Note {
+            path,
+            line: 1,
+            message: format!(
+                "not applied, because the gdck.toml takes precedence. It disagrees \
+                 about {}. Copy those into the gdck.toml, or delete this file",
+                changed.join(", ")
+            ),
+        });
+    }
+    notes
+}
+
+/// The settings two configurations disagree about, by the name a `gdck.toml`
+/// spells them, so the message names something searchable.
+fn differences(active: &Config, other: &Config) -> Vec<&'static str> {
+    let mut changed = Vec::new();
+    if active.format.line_length != other.format.line_length {
+        changed.push("format.line-length");
+    }
+    if active.format.indent != other.format.indent {
+        changed.push("format.indent");
+    }
+    if active.format.safety_checks != other.format.safety_checks {
+        changed.push("format.safety-checks");
+    }
+    if active.lint.max_line_length != other.lint.max_line_length {
+        changed.push("lint.max-line-length");
+    }
+    if active.lint.max_file_lines != other.lint.max_file_lines {
+        changed.push("lint.max-file-lines");
+    }
+    if active.lint.max_public_methods != other.lint.max_public_methods {
+        changed.push("lint.max-public-methods");
+    }
+    if active.lint.max_returns != other.lint.max_returns {
+        changed.push("lint.max-returns");
+    }
+    if active.lint.max_function_arguments != other.lint.max_function_arguments {
+        changed.push("lint.max-arguments");
+    }
+    if active.lint.declaration_order != other.lint.declaration_order {
+        changed.push("lint.declaration-order");
+    }
+    if active.lint.disabled != other.lint.disabled {
+        changed.push("lint.disable");
+    }
+    if active.excluded_dirs != other.excluded_dirs {
+        changed.push("files.exclude");
+    }
+    changed
 }
 
 /// Read one configuration file, whatever kind it is.

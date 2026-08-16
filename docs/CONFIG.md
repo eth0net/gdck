@@ -37,6 +37,22 @@ has said what it wants, and quietly mixing in a `gdlintrc` from three
 directories further up would make the result impossible to predict. `--no-config`
 ignores all of them.
 
+Winning outright is not the same as winning silently. If a `gdformatrc` or
+`gdlintrc` is there and *disagrees* with the `gdck.toml`, the run says so once
+and names the settings:
+
+```
+gdck: .gdlintrc:1: not applied, because the gdck.toml takes precedence.
+      It disagrees about lint.max-line-length. Copy those into the gdck.toml,
+      or delete this file
+```
+
+Only a real disagreement is reported, so once the two agree — which is what
+[`gdck init`](#migrating) leaves behind — nothing is said and the warning does
+not become permanent furniture. A shadowed file that cannot be parsed is passed
+over without comment: it is not governing the run, so it cannot mislead you
+about it.
+
 One configuration governs a whole run. A repository holding several Godot
 projects with different settings needs one invocation per project.
 

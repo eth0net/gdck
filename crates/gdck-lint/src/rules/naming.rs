@@ -380,10 +380,8 @@ mod tests {
     #[test]
     fn a_project_can_ask_for_pascal_case_file_names() {
         let tree = gdck_syntax::parse("extends Node\n");
-        let config = LintConfig {
-            file_name: gdck_config::FileNameCase::PascalCase,
-            ..LintConfig::default()
-        };
+        let mut config = LintConfig::default();
+        config.file_name = gdck_config::FileNameCase::PascalCase;
         assert!(crate::lint_file(&tree, &config, Some("GdUnitCmdTool.gd")).is_empty());
         assert!(crate::lint_file(&tree, &config, Some("RPCMessage.gd")).is_empty());
 
@@ -405,10 +403,8 @@ mod tests {
             gdck_config::FileNameCase::SnakeCase,
             gdck_config::FileNameCase::PascalCase,
         ] {
-            let config = LintConfig {
-                file_name: case,
-                ..LintConfig::default()
-            };
+            let mut config = LintConfig::default();
+            config.file_name = case;
             assert!(crate::lint_file(&tree, &config, Some("README.md")).is_empty());
         }
     }
