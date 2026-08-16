@@ -371,7 +371,7 @@ fn chunks_of(
             ));
         };
         let (Some(head), Some(tail)) = (
-            own_start(*node),
+            own_start(source, *node),
             significant_tokens(*node)
                 .last()
                 .map(|token| token.range.end()),
@@ -422,18 +422,30 @@ fn describe(context: &Context<'_>, node: SyntaxNode<'_>) -> String {
 
 /// Where a declaration begins on the page: its first token, or the first
 /// comment written above it, whichever comes first.
-fn own_start(node: SyntaxNode<'_>) -> Option<u32> {
+fn own_start(source: &str, node: SyntaxNode<'_>) -> Option<u32> {
     let first_code = significant_tokens(node)
         .first()
         .map(|token| token.range.start())?;
+    // The parser attaches a comment to the token that follows it, so the
+    // trailing comment of the declaration *above* arrives here as this one's
+    // leading trivia. Taking it would drag this chunk's start back onto the
+    // previous line, where it looks like the two share one. A comment with
+    // nothing but whitespace before it on its line is genuinely this
+    // declaration's; one sharing a line with code belongs to that code.
     let first_comment = super::all_tokens(node)
         .into_iter()
-        .find(|token| token.kind.is_comment())
-        .map(|token| token.range.start());
-    Some(match first_comment {
-        Some(comment) if comment < first_code => comment,
-        _ => first_code,
-    })
+        .filter(|token| token.kind.is_comment())
+        .map(|token| token.range.start())
+        .filter(|start| *start < first_code)
+        .find(|start| starts_its_line(source, *start));
+    Some(first_comment.unwrap_or(first_code))
+}
+
+/// Whether only whitespace sits between `offset` and the line it is on.
+fn starts_its_line(source: &str, offset: u32) -> bool {
+    let before = &source[..offset as usize];
+    let line_start = before.rfind('\n').map_or(0, |at| at + 1);
+    before[line_start..].trim().is_empty()
 }
 
 /// The name of a move that would change what the program does, if there is one.
@@ -777,6 +789,30 @@ mod tests {
         assert_eq!(
             reordered("# Documents health.\nvar health = 1\n\n## The signal.\nsignal died\n"),
             "\n## The signal.\nsignal died\n# Documents health.\nvar health = 1\n"
+        );
+    }
+
+    #[test]
+    fn a_trailing_comment_is_not_mistaken_for_the_next_declarations_own() {
+        // The parser hands a comment to the token that follows it, so the
+        // trailing comment of one declaration arrives as the leading trivia of
+        // the next. Treating it as the next one's start dragged that chunk
+        // back onto the previous line, where it looked like the two shared
+        // one, and the whole file was refused. On the project this was found
+        // on it blocked 13 files holding 105 of the 171 order reports.
+        assert_eq!(
+            reordered("var health = 1 # how much\nsignal died # when it runs out\n"),
+            "signal died # when it runs out\nvar health = 1 # how much\n"
+        );
+    }
+
+    #[test]
+    fn a_comment_on_its_own_line_still_belongs_to_what_follows_it() {
+        // The other half of the same rule: this one really is the signal's, so
+        // it has to travel with the signal rather than stay behind.
+        assert_eq!(
+            reordered("var health = 1 # how much\n# Documents the signal.\nsignal died\n"),
+            "# Documents the signal.\nsignal died\nvar health = 1 # how much\n"
         );
     }
 
