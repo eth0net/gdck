@@ -238,6 +238,25 @@ impl SyntaxKind {
         self == Self::Ident || self.is_keyword()
     }
 
+    /// Whether this token may stand where a *name* is expected.
+    ///
+    /// Two keywords may. `match` because `String.match()` is on the engine's
+    /// API and was there first, and `when` because it arrived as a `match`
+    /// guard long after code was already using it as a name. Godot spells this
+    /// out in `Token::is_identifier` in `gdscript_tokenizer.cpp`, whose comment
+    /// on `WHEN` reads "New keyword, avoid breaking existing code".
+    ///
+    /// That list also holds `PI`, `TAU`, `INF` and `NAN`, which are keywords to
+    /// Godot's tokenizer and plain identifiers here, so they need no exception.
+    ///
+    /// A keyword accepted here is recorded as an [`Ident`](Self::Ident), since
+    /// that is what it is being used as; the guard position in a `match` arm
+    /// keeps reading it as the keyword.
+    #[must_use]
+    pub fn is_name(self) -> bool {
+        matches!(self, Self::Ident | Self::MatchKw | Self::WhenKw)
+    }
+
     /// Whether this kind describes a leaf produced by the lexer.
     #[must_use]
     pub fn is_token(self) -> bool {
