@@ -9,9 +9,11 @@ guide][styleguide].
 
 > [!NOTE]
 > **Complete but young.** The parser, formatter and linter are done and tested,
-> every subcommand works, and configuration is read. It has not yet been used
-> in anger on anything but `gdtoolkit`'s corpus, so run it alongside your
-> existing setup before you trust it with `--fix`. See [Status](#status).
+> every subcommand works, and configuration is read. It has been run against two
+> real projects — around 730 files between them — as well as `gdtoolkit`'s
+> corpus, and against real Godot builds. It is still new enough to be worth
+> running alongside your existing setup before you trust it with `--fix`. See
+> [Status](#status).
 
 `gdck` is a ground-up reimplementation of [`godot-gdscript-toolkit`][gdtoolkit]
 in Rust. It is designed to install alongside the original rather than replace it
@@ -293,6 +295,14 @@ The parser handles every file in `gdtoolkit`'s corpus of valid GDScript — 324
 files across its parser, formatter and `gd2py` test suites — and round-trips all
 353 files there, including the deliberately invalid ones. The formatter formats
 every one of those valid files with its safety checks passing.
+
+Beyond that corpus it has been run against two real Godot projects, a 243-file
+game and a 488-file addon. Every formatted file in the corpus is fed to a real
+Godot build in CI and has to be accepted by the engine's own parser, so
+"formats correctly" means Godot agrees rather than that `gdck` agrees with
+itself. Reordering is held to a stronger promise still: it may only ever permute
+a file's declarations, checked against both of those projects as well as the
+corpus.
 
 The formatter is also tested against the style guide's own worked examples: all
 56 usable code samples are extracted from the documentation and asserted on
