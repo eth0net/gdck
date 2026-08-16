@@ -72,7 +72,7 @@ class-declaration = "multi-line"  # or "single-line"
 safety-checks = true
 
 [lint]
-max-line-length = 100
+max-line-length = 100          # not moved by a gdlintrc; see below
 max-file-lines = 1000
 max-public-methods = 20
 max-returns = 6
@@ -84,6 +84,7 @@ disable = []
 
 [files]
 exclude = [".git", ".godot", ".import", "addons"]
+# extend-exclude adds to that list; it is the one you usually want.
 ```
 
 ### `[format]`
@@ -187,13 +188,40 @@ To switch a rule off for one line or one region instead, see
 
 ### `[files]`
 
-`exclude` is a list of directory names skipped when walking a directory. It
-**replaces** the defaults rather than adding to them, so include the ones you
-still want:
+Both keys are lists of directory *names* skipped when walking a directory.
+
+| Key | Meaning |
+|---|---|
+| `exclude` | The set of names to skip, **replacing** the defaults. |
+| `extend-exclude` | Names to skip **as well as** whatever `exclude` left. |
+
+Reach for `extend-exclude` to add one directory, which is nearly always what is
+wanted:
 
 ```toml
 [files]
-exclude = [".git", ".godot", ".import", "addons", "vendor"]
+extend-exclude = ["vendor"]
+# skips .git, .godot, .import, addons, vendor
+```
+
+`exclude` on its own replaces the lot, so this is a different thing and usually
+a mistake:
+
+```toml
+[files]
+exclude = ["vendor"]
+# skips vendor — and now walks .godot, which is Godot's generated import cache
+```
+
+Writing both is not a contradiction. `exclude` says what the set is and
+`extend-exclude` adds to *that*, so a project deliberately narrowing the
+defaults still gets what it asked for:
+
+```toml
+[files]
+exclude = [".git"]
+extend-exclude = ["vendor"]
+# skips .git and vendor, and nothing else
 ```
 
 A path named directly on the command line is always processed, whatever this
@@ -274,6 +302,21 @@ Read from `gdlintrc`:
 
 Both are read when both exist, formatting first, so a `gdlintrc` naming its own
 line length has the last word on what the linter reports.
+
+The two line lengths are deliberately not the same setting, which surprises
+people often enough to be worth spelling out. `gdformatrc`'s `line_length` moves
+both, because a formatter wrapping wider than the linter allows would report its
+own output. A `gdlintrc`'s `max-line-length` moves **only the linter**, and the
+formatter keeps wrapping at 100.
+
+That is what `gdtoolkit` does — `gdformat` reads `line_length` from a
+`gdformatrc` and never looks at a `gdlintrc` — so a project with only a
+`gdlintrc` has been formatting at 100 and linting at its own width all along,
+whether or not it meant to. Making `max-line-length` widen the formatter here
+would quietly reflow files `gdformat` had left alone, which is the one thing
+compatibility is for. Say `format.line-length` in a `gdck.toml` to widen the
+formatter; `gdck init` writes both, so the difference is visible rather than
+inferred.
 
 ### What is not applied, and why you hear about it
 
