@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `gdck-syntax`: `when` and `match` were refused as names, so real code Godot
+  compiles was reported as a syntax error — `var when: int`, a parameter called
+  `when`, and `text.match("*.gd")` among them. Both are keywords Godot still
+  accepts as identifiers: `match` because `String.match()` was on the engine's
+  API first, and `when` because it arrived as a `match` guard long after code
+  was using it as a name. The list is `Token::is_identifier` in
+  `gdscript_tokenizer.cpp`, whose comment on `when` reads "New keyword, avoid
+  breaking existing code".
+  A file this hit could not be formatted at all, and the mis-parse produced
+  phantom lint findings around it. Both are gone: on the project that reported
+  it, all 243 files now parse and the 7 spurious `expression-not-assigned`
+  findings disappeared. A `match` guard still reads `when` as the keyword, so
+  `1 when when > 0` parses as a guard testing a variable of that name.
+
 ### Added
 
 - `lint.file-name` chooses which convention the `file-name` rule holds a file

@@ -65,6 +65,41 @@ mod tests {
         assert_eq!(tree.root().kind(), SyntaxKind::SourceFile);
     }
 
+    /// `match` and `when` are keywords Godot still accepts as names — `match`
+    /// because `String.match()` was on the engine's API first, `when` because
+    /// it arrived as a `match` guard after code was already using it. Godot
+    /// lists both in `Token::is_identifier`, and refusing them rejects real
+    /// code the engine compiles.
+    #[test]
+    fn the_keywords_godot_accepts_as_names_are_names_here_too() {
+        assert_parses("var when: int = 3\n");
+        assert_parses("func f(when: int) -> int:\n\treturn when\n");
+        assert_parses("func f(text: String) -> bool:\n\treturn text.match(\"*.gd\")\n");
+        assert_parses("var when := 1\nvar match := 2\n");
+        assert_parses("signal when\n");
+        assert_parses("enum when { A }\n");
+        assert_parses("func when() -> void:\n\tpass\n");
+        assert_parses("var entry := {}\nvar x = entry.when\n");
+    }
+
+    /// And they are still keywords where they are one. The guard below reads
+    /// `when` twice: once as the keyword introducing the guard, once as the
+    /// variable it tests.
+    #[test]
+    fn a_match_guard_still_reads_when_as_a_keyword() {
+        assert_parses(
+            "func f(x: int, when: int) -> String:\n\
+             \tmatch x:\n\
+             \t\t1 when when > 0:\n\
+             \t\t\treturn \"guarded\"\n\
+             \t\tvar bound when bound > 5:\n\
+             \t\t\treturn \"bound\"\n\
+             \t\t_:\n\
+             \t\t\treturn \"other\"\n",
+        );
+        assert_round_trips("match x:\n\t1 when y:\n\t\tpass\n");
+    }
+
     #[test]
     fn parses_class_level_declarations() {
         let tree = assert_parses(

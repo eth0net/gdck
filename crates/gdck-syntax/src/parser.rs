@@ -182,7 +182,7 @@ impl Parser<'_> {
     fn parse_class_name(&mut self) {
         self.builder.start_node(ClassNameDecl);
         self.bump(); // class_name
-        self.expect(Ident, "expected a class name");
+        self.expect_name("expected a class name");
         if self.at(ExtendsKw) {
             self.parse_extends();
         }
@@ -198,7 +198,7 @@ impl Parser<'_> {
             // `extends "path.gd".Inner`
             while self.at(Dot) {
                 self.bump();
-                self.expect(Ident, "expected a name after `.`");
+                self.expect_name("expected a name after `.`");
             }
         } else {
             self.parse_type();
@@ -210,7 +210,7 @@ impl Parser<'_> {
     fn parse_signal_decl(&mut self, checkpoint: Checkpoint) {
         self.builder.start_node_at(checkpoint, SignalDecl);
         self.bump(); // signal
-        self.expect(Ident, "expected a signal name");
+        self.expect_name("expected a signal name");
         if self.at(LParen) {
             self.parse_param_list();
         }
@@ -221,8 +221,8 @@ impl Parser<'_> {
     fn parse_enum_decl(&mut self, checkpoint: Checkpoint) {
         self.builder.start_node_at(checkpoint, EnumDecl);
         self.bump(); // enum
-        if self.at(Ident) {
-            self.bump();
+        if self.at_name() {
+            self.eat_name();
         }
         if self.at(LBrace) {
             self.builder.start_node(EnumBody);
@@ -231,7 +231,7 @@ impl Parser<'_> {
             while !self.at(RBrace) && !self.at(Eof) {
                 let before = self.pos;
                 self.builder.start_node(EnumVariant);
-                self.expect(Ident, "expected an enum member name");
+                self.expect_name("expected an enum member name");
                 if self.eat(Eq) {
                     self.parse_expr();
                 }
@@ -254,7 +254,7 @@ impl Parser<'_> {
     fn parse_const_decl(&mut self, checkpoint: Checkpoint) {
         self.builder.start_node_at(checkpoint, ConstDecl);
         self.bump(); // const
-        self.expect(Ident, "expected a constant name");
+        self.expect_name("expected a constant name");
         if !self.parse_type_and_initializer() {
             self.error("a constant must be initialised");
         }
@@ -266,7 +266,7 @@ impl Parser<'_> {
         self.builder.start_node_at(checkpoint, VarDecl);
         self.eat(StaticKw);
         self.bump(); // var
-        self.expect(Ident, "expected a variable name");
+        self.expect_name("expected a variable name");
         self.parse_type_and_initializer();
         // Property accessors: `var x: set = f, get = g` or an indented block.
         if self.at(Colon) {
@@ -296,7 +296,7 @@ impl Parser<'_> {
         // `get` are identifiers, so `var p: set = f` needs telling apart from a
         // genuine type annotation by name.
         let names_accessor = matches!(self.nth_text(1), "set" | "get");
-        if self.at(Colon) && matches!(self.nth(1), Ident | VoidKw) && !names_accessor {
+        if self.at(Colon) && (self.nth_is_name(1) || self.nth(1) == VoidKw) && !names_accessor {
             self.builder.start_node(TypeHint);
             self.bump(); // :
             self.parse_type();
@@ -385,7 +385,7 @@ impl Parser<'_> {
         self.builder.start_node_at(checkpoint, FuncDecl);
         self.eat(StaticKw);
         self.bump(); // func
-        self.expect(Ident, "expected a function name");
+        self.expect_name("expected a function name");
         if self.at(LParen) {
             self.parse_param_list();
         } else {
@@ -409,7 +409,7 @@ impl Parser<'_> {
     fn parse_inner_class(&mut self, checkpoint: Checkpoint) {
         self.builder.start_node_at(checkpoint, ClassDecl);
         self.bump(); // class
-        self.expect(Ident, "expected a class name");
+        self.expect_name("expected a class name");
         if self.at(ExtendsKw) {
             self.parse_extends();
         }
@@ -447,7 +447,7 @@ impl Parser<'_> {
             self.builder.start_node(Param);
             // `...rest` collects the remaining arguments.
             self.eat(Ellipsis);
-            self.expect(Ident, "expected a parameter name");
+            self.expect_name("expected a parameter name");
             self.parse_type_and_initializer();
             self.builder.finish_node();
             if !self.eat(Comma) {
@@ -483,14 +483,14 @@ impl Parser<'_> {
             self.bump();
             return;
         }
-        if !self.at(Ident) {
+        if !self.at_name() {
             self.error("expected a type name");
             return;
         }
-        self.bump();
+        self.eat_name();
         while self.at(Dot) {
             self.bump();
-            self.expect(Ident, "expected a name after `.`");
+            self.expect_name("expected a name after `.`");
         }
         if self.at(LBracket) {
             self.bump();
@@ -673,8 +673,8 @@ impl Parser<'_> {
     fn parse_for_statement(&mut self) {
         self.builder.start_node(ForStmt);
         self.bump(); // for
-        self.expect(Ident, "expected a loop variable name");
-        if self.at(Colon) && matches!(self.nth(1), Ident | VoidKw) {
+        self.expect_name("expected a loop variable name");
+        if self.at(Colon) && (self.nth_is_name(1) || self.nth(1) == VoidKw) {
             self.builder.start_node(TypeHint);
             self.bump();
             self.parse_type();
@@ -885,10 +885,11 @@ impl Parser<'_> {
                 Dot => {
                     self.builder.start_node_at(checkpoint, AttributeExpr);
                     self.bump();
-                    // Keywords are legal member names in a few places, so accept
-                    // any identifier-shaped token here.
-                    if self.at(Ident) {
-                        self.bump();
+                    // `String.match()` is on the engine's API, so the couple
+                    // of keywords Godot still treats as names are accepted
+                    // here. See `SyntaxKind::is_name`.
+                    if self.at_name() {
+                        self.eat_name();
                     } else {
                         self.error("expected a member name after `.`");
                     }
@@ -909,9 +910,12 @@ impl Parser<'_> {
                 self.builder.finish_node();
             }
 
-            Ident | SelfKw | SuperKw => {
+            Ident | SelfKw | SuperKw | MatchKw | WhenKw => {
                 self.builder.start_node(NameRef);
-                self.bump();
+                // `self` and `super` are themselves, not names.
+                if !self.eat_name() {
+                    self.bump();
+                }
                 self.builder.finish_node();
             }
 
@@ -961,7 +965,7 @@ impl Parser<'_> {
             VarKw if self.in_pattern => {
                 self.builder.start_node(NameRef);
                 self.bump();
-                self.expect(Ident, "expected a name after `var` in a pattern");
+                self.expect_name("expected a name after `var` in a pattern");
                 self.builder.finish_node();
             }
 
@@ -976,8 +980,8 @@ impl Parser<'_> {
             FuncKw => {
                 self.builder.start_node(LambdaExpr);
                 self.bump();
-                if self.at(Ident) {
-                    self.bump();
+                if self.at_name() {
+                    self.eat_name();
                 }
                 if self.at(LParen) {
                     self.parse_param_list();
@@ -1013,7 +1017,7 @@ impl Parser<'_> {
             if self.in_pattern && self.at(DotDot) {
                 // A rest marker stands alone; it has no `key: value` shape.
                 self.bump();
-            } else if self.at(Ident) && self.nth(1) == Eq {
+            } else if self.at_name() && self.nth(1) == Eq {
                 self.bump(); // key
                 self.bump(); // =
                 self.parse_expr();
@@ -1088,6 +1092,41 @@ impl Parser<'_> {
 
     fn expect(&mut self, kind: SyntaxKind, message: &str) {
         if !self.eat(kind) {
+            self.error(message);
+        }
+    }
+
+    /// Whether the current token can serve as a name.
+    ///
+    /// See [`SyntaxKind::is_name`]: a couple of keywords can, because Godot
+    /// accepts them there and real code relies on it.
+    fn at_name(&self) -> bool {
+        self.current().is_name()
+    }
+
+    /// Like [`Self::at_name`], for a token further along.
+    fn nth_is_name(&self, n: usize) -> bool {
+        self.nth(n).is_name()
+    }
+
+    /// Consume a name, recording a contextual keyword as the identifier it is
+    /// being used as.
+    fn eat_name(&mut self) -> bool {
+        if !self.at_name() {
+            return false;
+        }
+        self.skip_trivia();
+        let mut token = self.tokens[self.pos];
+        token.kind = Ident;
+        self.builder.token(token);
+        if self.tokens[self.pos].kind != Eof {
+            self.pos += 1;
+        }
+        true
+    }
+
+    fn expect_name(&mut self, message: &str) {
+        if !self.eat_name() {
             self.error(message);
         }
     }
