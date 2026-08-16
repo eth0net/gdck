@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-16
+
+`gdck` now skips what your `.gitignore` skips, which is a change to what a run
+looks at rather than a new option. The minimum Rust version moves to 1.88;
+nothing about the released binaries changes.
+
 ### Added
 
 - Files a `.gitignore` covers are skipped, which is new behaviour rather than a
@@ -369,7 +375,8 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 - `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and
   the planned rule catalogue.
 
-[Unreleased]: https://github.com/eth0net/gdck/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/eth0net/gdck/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/eth0net/gdck/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/eth0net/gdck/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/eth0net/gdck/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eth0net/gdck/compare/v0.1.0...v0.2.0

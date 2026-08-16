@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 # Nothing is published unless it says so. A crate added to this workspace is an
 # implementation detail until someone decides otherwise, and that decision is
 # irreversible once made: a name on crates.io cannot be given back, and a
@@ -21,10 +21,10 @@ authors = ["eth0net"]
 # version; `cargo publish` rewrites each of these to the version alone, since a
 # path means nothing to anyone downloading the crate. Both have to be present
 # for the two to work, and the versions move together with the workspace's.
-gdck-config = { path = "crates/gdck-config", version = "0.4.0" }
-gdck-format = { path = "crates/gdck-format", version = "0.4.0" }
-gdck-lint = { path = "crates/gdck-lint", version = "0.4.0" }
-gdck-syntax = { path = "crates/gdck-syntax", version = "0.4.0" }
+gdck-config = { path = "crates/gdck-config", version = "0.5.0" }
+gdck-format = { path = "crates/gdck-format", version = "0.5.0" }
+gdck-lint = { path = "crates/gdck-lint", version = "0.5.0" }
+gdck-syntax = { path = "crates/gdck-syntax", version = "0.5.0" }
 
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive", "wrap_help"] }
