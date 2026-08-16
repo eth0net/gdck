@@ -6,12 +6,20 @@ page is only about departing from it.
 
 [styleguide]: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html
 
-To see what a run is actually using:
+To see what a run is actually using, and to write it down:
 
 ```sh
 gdck config          # the effective settings, as a gdck.toml
-gdck config > gdck.toml   # and that is a valid starting point
+gdck init            # write a gdck.toml holding them
 ```
+
+Do not use `gdck config > gdck.toml`. Earlier versions of this page suggested
+it, and it does the opposite of what it looks like: the shell creates the file
+before `gdck` starts, `gdck` then finds an empty `gdck.toml` — which
+[wins outright](#where-settings-come-from) over a `gdlintrc` — and writes the
+defaults into it. A project doing that to migrate loses every setting it had,
+and is left with a file that looks deliberate. `gdck init` writes the file
+itself, so there is nothing to race.
 
 ## Where settings come from
 
@@ -203,6 +211,29 @@ A project already using `gdformat` and `gdlint` has decided its line length and
 which rules it does not want. Making it restate all of that before `gdck` will
 behave is a reason not to try `gdck` at all, so with no `gdck.toml` present the
 existing files are read.
+
+### Migrating
+
+`gdck` keeps reading those files indefinitely, so there is no deadline. When you
+do want a `gdck.toml` — to set something `gdtoolkit` has no equivalent for, such
+as [`format.class-declaration`](#choosing-the-class-declaration-shape) or
+[`lint.file-name`](#lint) — write it with `gdck init` rather than by hand:
+
+```sh
+gdck init
+```
+
+It reads whatever is in force, which in a `gdtoolkit` project is your
+`gdformatrc` and `gdlintrc`, and writes the equivalent `gdck.toml`. Settings you
+chose come out live; settings still at the style guide's default come out
+commented, so the file reads as a list of your decisions and you keep inheriting
+later changes to the rest. Anything `gdtoolkit` had that `gdck` has no setting
+for is named on the way past, before the file is written.
+
+The result is lossless: `gdck config` prints the same settings before and after.
+`gdck init` refuses to overwrite an existing `gdck.toml` without `--force`, and
+`gdck init --no-config` starts from the style guide's defaults instead, ignoring
+whatever files are there.
 
 Read from `gdformatrc`:
 

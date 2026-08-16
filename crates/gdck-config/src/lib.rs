@@ -303,6 +303,21 @@ impl Config {
     pub fn to_toml(&self) -> String {
         schema::to_toml(self)
     }
+
+    /// Write these settings out as a `gdck.toml` for a project to keep.
+    ///
+    /// Every setting appears, but the ones still at their default are
+    /// commented out. The live lines are then what this project decided, and
+    /// the commented ones are a catalogue to uncomment from — and a project
+    /// inherits later changes to a default rather than pinning today's value
+    /// without meaning to.
+    ///
+    /// This is what `gdck init` writes. [`to_toml`](Self::to_toml) is the
+    /// other question — what a run is using — and answers it in full.
+    #[must_use]
+    pub fn to_starter_toml(&self) -> String {
+        schema::to_starter_toml(self)
+    }
 }
 
 // -- errors and notes -------------------------------------------------------

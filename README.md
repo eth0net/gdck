@@ -123,6 +123,7 @@ gdck parse --tree a.gd    # dump the syntax tree
 gdck parse --tokens a.gd  # dump the token stream
 
 gdck config               # what settings this run would use
+gdck init                 # write them to a gdck.toml
 ```
 
 `check` and `fix` are the everything-at-once verbs; `format` and `lint` are the
@@ -157,6 +158,11 @@ back to `gdtoolkit`'s own `gdformatrc` and `gdlintrc`, so a project already set
 up for `gdformat` and `gdlint` keeps its settings without writing anything new.
 `gdck config` prints what a run would actually use, and
 [docs/CONFIG.md](docs/CONFIG.md) documents every setting.
+
+`gdck init` writes that `gdck.toml` for you, carrying a `gdformatrc` or
+`gdlintrc` across if there is one — losslessly, and naming anything it could not
+carry. Settings left at the style guide's default are written commented out, so
+the file says what your project decided rather than pinning today's defaults.
 
 ### Reading from standard input
 
