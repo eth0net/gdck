@@ -347,10 +347,8 @@ mod tests {
         // `gdformat` enforces neither form, so a project can be uniformly on
         // this one without having chosen it. Both inputs still converge, or
         // the setting would only be preserving whatever it was given.
-        let joined = FormatConfig {
-            class_declaration: gdck_config::ClassDeclaration::SingleLine,
-            ..FormatConfig::default()
-        };
+        let mut joined = FormatConfig::default();
+        joined.class_declaration = gdck_config::ClassDeclaration::SingleLine;
         for source in [
             "class_name Player extends Node\n",
             "class_name Player\nextends Node\n",
@@ -375,10 +373,8 @@ mod tests {
         // dropped, and only the safety check noticed.
         let source = "class_name Player\n# why we extend\nextends Node\n";
         check_stable(source);
-        let joined = FormatConfig {
-            class_declaration: gdck_config::ClassDeclaration::SingleLine,
-            ..FormatConfig::default()
-        };
+        let mut joined = FormatConfig::default();
+        joined.class_declaration = gdck_config::ClassDeclaration::SingleLine;
         assert_eq!(format_source(source, &joined).expect("formats"), source);
     }
 

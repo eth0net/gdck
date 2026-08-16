@@ -134,22 +134,19 @@ mod tests {
     /// Only the rule under test, so a fixture written to trip a threshold does
     /// not also have to be idiomatic.
     fn only(rule: &str) -> LintConfig {
-        LintConfig {
-            disabled: crate::RULES
-                .iter()
-                .map(|entry| entry.name.to_string())
-                .filter(|name| name != rule)
-                .collect(),
-            ..LintConfig::default()
-        }
+        let mut config = LintConfig::default();
+        config.disabled = crate::RULES
+            .iter()
+            .map(|entry| entry.name.to_string())
+            .filter(|name| name != rule)
+            .collect();
+        config
     }
 
     #[test]
     fn a_long_file_is_reported_once() {
-        let config = LintConfig {
-            max_file_lines: 3,
-            ..only("max-file-lines")
-        };
+        let mut config = only("max-file-lines");
+        config.max_file_lines = 3;
         assert_eq!(fired_with(&config, "var a = 1\n"), Vec::<&str>::new());
         assert_eq!(
             fired_with(&config, "var a = 1\nvar b = 2\nvar c = 3\nvar d = 4\n"),
@@ -159,10 +156,8 @@ mod tests {
 
     #[test]
     fn public_methods_are_counted_and_private_ones_are_not() {
-        let config = LintConfig {
-            max_public_methods: 1,
-            ..only("max-public-methods")
-        };
+        let mut config = only("max-public-methods");
+        config.max_public_methods = 1;
         assert_eq!(
             fired_with(&config, "func a():\n\tpass\n\n\nfunc _b():\n\tpass\n"),
             Vec::<&str>::new()
@@ -175,10 +170,8 @@ mod tests {
 
     #[test]
     fn an_inner_class_is_counted_separately() {
-        let config = LintConfig {
-            max_public_methods: 1,
-            ..only("max-public-methods")
-        };
+        let mut config = only("max-public-methods");
+        config.max_public_methods = 1;
         assert_eq!(
             fired_with(
                 &config,
@@ -190,10 +183,8 @@ mod tests {
 
     #[test]
     fn returns_are_counted_per_function_body() {
-        let config = LintConfig {
-            max_returns: 1,
-            ..only("max-returns")
-        };
+        let mut config = only("max-returns");
+        config.max_returns = 1;
         assert_eq!(
             fired_with(&config, "func f(a):\n\tif a:\n\t\treturn 1\n\treturn 2\n"),
             ["max-returns"]
@@ -210,10 +201,8 @@ mod tests {
 
     #[test]
     fn arguments_are_counted() {
-        let config = LintConfig {
-            max_function_arguments: 2,
-            ..only("max-arguments")
-        };
+        let mut config = only("max-arguments");
+        config.max_function_arguments = 2;
         assert_eq!(
             fired_with(&config, "func f(a, b):\n\tprint(a, b)\n"),
             Vec::<&str>::new()

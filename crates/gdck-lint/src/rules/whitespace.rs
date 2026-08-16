@@ -331,10 +331,8 @@ mod tests {
 
     #[test]
     fn the_configured_width_is_respected() {
-        let config = LintConfig {
-            max_line_length: 20,
-            ..LintConfig::default()
-        };
+        let mut config = LintConfig::default();
+        config.max_line_length = 20;
         let tree = gdck_syntax::parse("var some_name_here = 1234\n");
         let found = crate::lint(&tree, &config);
         assert_eq!(found[0].rule, "line-too-long");
