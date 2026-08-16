@@ -117,7 +117,7 @@ pub fn format_source(source: &str, config: &FormatConfig) -> Result<String, Form
 
 fn render(tree: &SyntaxTree, config: &FormatConfig) -> String {
     let trivia = Trivia::collect(tree);
-    let lowerer = Lowerer::new(tree, &trivia);
+    let lowerer = Lowerer::new(tree, &trivia, config.class_declaration);
     let document = lowerer.source_file(tree.root());
     let mut output = doc::render(&document, config.line_length as usize, config.indent);
 
@@ -340,6 +340,46 @@ mod tests {
             "class_name Player\nextends Node\n",
         );
         check_stable("class_name Player\nextends Node\n");
+    }
+
+    #[test]
+    fn a_project_can_keep_the_joined_class_declaration() {
+        // `gdformat` enforces neither form, so a project can be uniformly on
+        // this one without having chosen it. Both inputs still converge, or
+        // the setting would only be preserving whatever it was given.
+        let joined = FormatConfig {
+            class_declaration: gdck_config::ClassDeclaration::SingleLine,
+            ..FormatConfig::default()
+        };
+        for source in [
+            "class_name Player extends Node\n",
+            "class_name Player\nextends Node\n",
+        ] {
+            assert_eq!(
+                format_source(source, &joined).expect("formats"),
+                "class_name Player extends Node\n",
+                "\ninput was:\n{source}"
+            );
+        }
+        // Nothing to join: `extends` alone is one line under either setting.
+        assert_eq!(
+            format_source("extends Node\n", &joined).expect("formats"),
+            "extends Node\n"
+        );
+    }
+
+    #[test]
+    fn a_comment_between_class_name_and_extends_survives() {
+        // It has nowhere to go on a joined line, so it keeps the two apart
+        // whatever the setting says. Before this was handled the comment was
+        // dropped, and only the safety check noticed.
+        let source = "class_name Player\n# why we extend\nextends Node\n";
+        check_stable(source);
+        let joined = FormatConfig {
+            class_declaration: gdck_config::ClassDeclaration::SingleLine,
+            ..FormatConfig::default()
+        };
+        assert_eq!(format_source(source, &joined).expect("formats"), source);
     }
 
     #[test]

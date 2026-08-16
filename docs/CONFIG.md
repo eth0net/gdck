@@ -43,7 +43,8 @@ Every setting, at its default:
 ```toml
 [format]
 line-length = 100
-indent = "tabs"          # or "spaces"
+indent = "tabs"              # or "spaces"
+class-declaration = "multi-line"  # or "single-line"
 safety-checks = true
 
 [lint]
@@ -68,11 +69,36 @@ exclude = [".git", ".godot", ".import", "addons"]
 | `line-length` | Where the formatter wraps. The guide says to keep lines under 100 characters. |
 | `indent` | `"tabs"`, which the guide mandates, or `"spaces"` for a project already committed to them. |
 | `indent-width` | How many spaces one level is, 1 to 16. Only with `indent = "spaces"`; a tab is four columns and is not adjustable. |
+| `class-declaration` | Whether a file-level `class_name` keeps its `extends` on the same line. `"multi-line"` is the guide's answer; `"single-line"` suits a project already written that way. |
 | `safety-checks` | Re-parse the output and check it still parses, means the same thing, kept every comment, and is stable. `--fast` turns them off for one run. |
 
 Setting `line-length` moves `lint.max-line-length` with it unless that is set
 too. Otherwise the linter would report exactly the lines the formatter just
 produced.
+
+#### Choosing the class-declaration shape
+
+The guide asks for two lines and says so three ways: the prose introduces them
+in sequence, every example writes them apart, and inner classes are singled out
+for the opposite treatment — "For inner classes, use single-line declarations".
+That contrast only means something if file-level declarations are not
+single-line, so `"multi-line"` is the default:
+
+```gdscript
+class_name Player
+extends Node
+```
+
+`gdformat` enforces neither shape. Its grammar has a separate rule for the
+joined form and it preserves whichever one it is given, so a project can be
+uniformly on `class_name Player extends Node` without ever having chosen it —
+and the first `gdck format` would rewrite most of its files. `"single-line"` is
+for a project that has looked at that diff and prefers what it had.
+
+Either way the result is canonical: both shapes converge on the one configured,
+so this decides a layout rather than preserving whatever was written. The one
+exception is a comment between the two lines, which has nowhere to go on a
+joined line and so keeps them apart whatever the setting says.
 
 ### `[lint]`
 
@@ -204,17 +230,16 @@ line length has the last word on what the linter reports.
 
 ### What is not applied, and why you hear about it
 
-Two settings have no equivalent, because they configure machinery `gdck` does
-not have:
+One setting has no equivalent, because it configures machinery `gdck` does not
+have:
 
 - **Naming patterns** — `class-name`, `function-name` and the eleven others.
   `gdck` checks the guide's conventions directly rather than with a regular
   expression, so it has nowhere to put a pattern. A pattern left at
   `gdtoolkit`'s default changes nothing and passes without comment; a
   customised one is reported.
-- **`class-definitions-order`** — `gdck` orders declarations the way the style
-  guide does. The default order is the one it implements, so only a reordered
-  list is reported.
+That is the only one. `class-definitions-order` used to be listed here too, and
+is now [read into `lint.declaration-order`](#lint).
 
 Anything else in the file that `gdck` has no setting for is reported too, once,
 before the run it would otherwise silently affect:

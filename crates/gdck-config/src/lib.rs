@@ -65,12 +65,39 @@ pub enum IndentStyle {
     Spaces(u8),
 }
 
+/// How a file-level `class_name` and its `extends` are laid out.
+///
+/// The style guide asks for two lines, and says so three ways: the prose
+/// introduces them in sequence ("Follow with the optional `@icon` then the
+/// `class_name`... Then, add the `extends` keyword"), every example writes
+/// them apart, and inner classes are singled out for the opposite treatment —
+/// "For inner classes, use single-line declarations". That contrast only means
+/// something if file-level declarations are not single-line, so
+/// [`MultiLine`](Self::MultiLine) is the default.
+///
+/// `gdformat` enforces neither: its grammar has a separate rule for the joined
+/// form and it preserves whichever the author wrote. So a project arriving from
+/// `gdformat` can be consistently on the one-line form without ever having
+/// chosen it, and the first `gdck format` would rewrite most of its files.
+/// [`SingleLine`](Self::SingleLine) exists for a project that has looked at
+/// that diff and decided it prefers what it already had.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClassDeclaration {
+    /// `class_name Player` and `extends Node` on their own lines.
+    #[default]
+    MultiLine,
+    /// `class_name Player extends Node`, as `gdformat` leaves it.
+    SingleLine,
+}
+
 /// Formatting options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatConfig {
     /// Hard wrap width. The style guide says keep lines under 100 characters.
     pub line_length: u16,
     pub indent: IndentStyle,
+    /// Whether a file-level `class_name` keeps its `extends` on the same line.
+    pub class_declaration: ClassDeclaration,
     /// Re-run the formatter on its own output and reject the result if it is
     /// not stable, and check that no comments were dropped. Cheap insurance
     /// against a formatter bug silently eating code.
@@ -82,6 +109,7 @@ impl Default for FormatConfig {
         Self {
             line_length: 100,
             indent: IndentStyle::Tabs,
+            class_declaration: ClassDeclaration::MultiLine,
             safety_checks: true,
         }
     }

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `format.class-declaration` chooses whether a file-level `class_name` keeps
+  its `extends` on the same line. `"multi-line"` is the default and the style
+  guide's answer — its prose introduces the two in sequence, its examples write
+  them apart, and it singles inner classes out for the opposite treatment ("For
+  inner classes, use single-line declarations"), which only means something if
+  file-level declarations are not single-line.
+  `"single-line"` exists because `gdformat` enforces neither shape: its grammar
+  has a separate rule for the joined form and it preserves whichever it was
+  given. A project migrating can therefore be uniformly on
+  `class_name Player extends Node` without ever having chosen it, and would
+  meet that as a diff across most of its files. Either setting is canonical —
+  both shapes converge on the one configured, so this decides a layout rather
+  than preserving what was written.
+
+### Fixed
+
+- A comment written between `class_name` and `extends` was dropped by the
+  formatter. The safety checks caught it, so nothing was ever written to disk
+  and the file was reported as rejected rather than silently mangled — but the
+  file could not be formatted at all until the comment was moved. It is now
+  kept, on its own line, and its presence holds the two lines apart even under
+  `class-declaration = "single-line"`, where a joined line would leave it
+  nowhere to go.
+
+### Documentation
+
+- `docs/CONFIG.md` listed `class-definitions-order` among the `gdlintrc`
+  settings that are reported and not applied. It has been read into
+  `lint.declaration-order` since 0.3.0; the page now says so.
+
 ## [0.3.0] - 2026-08-16
 
 Two trials against real projects drove most of this: a parser bug that

@@ -16,6 +16,7 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
 
+use gdck_config::ClassDeclaration;
 #[allow(clippy::enum_glob_use)]
 use gdck_syntax::SyntaxKind::*;
 use gdck_syntax::{SyntaxKind, SyntaxNode, SyntaxTree, Token};
@@ -49,13 +50,20 @@ enum Scope {
 
 /// Lowers a syntax tree to a [`Doc`].
 ///
-/// Deliberately unaware of the format settings: lowering says where a break
-/// *may* go, and rendering decides which ones are taken, from the line length
-/// and the indent style. Keeping the settings out of here is what stops a
-/// width-dependent decision from being baked into the document.
+/// Unaware of the *width* settings: lowering says where a break may go, and
+/// rendering decides which ones are taken, from the line length and the indent
+/// style. Neither is reachable from here, which is what stops a width-dependent
+/// decision from being baked into the document.
+///
+/// [`ClassDeclaration`] is the exception that shows the rule. It selects
+/// between two shapes that are both fixed whatever the width — a hard break or
+/// none — so there is nothing for the renderer to decide. Settings of that kind
+/// are passed one at a time rather than as a `FormatConfig`, so that the width
+/// stays out of reach by construction rather than by convention.
 pub(crate) struct Lowerer<'a> {
     tree: &'a SyntaxTree,
     trivia: &'a Trivia,
+    class_declaration: ClassDeclaration,
     /// Trailing comments already emitted, by anchor offset.
     ///
     /// A comment on the last line of a block is anchored on a token that is
@@ -66,10 +74,15 @@ pub(crate) struct Lowerer<'a> {
 }
 
 impl<'a> Lowerer<'a> {
-    pub(crate) fn new(tree: &'a SyntaxTree, trivia: &'a Trivia) -> Self {
+    pub(crate) fn new(
+        tree: &'a SyntaxTree,
+        trivia: &'a Trivia,
+        class_declaration: ClassDeclaration,
+    ) -> Self {
         Self {
             tree,
             trivia,
+            class_declaration,
             emitted_trailing: RefCell::new(HashSet::new()),
         }
     }
@@ -325,6 +338,11 @@ impl<'a> Lowerer<'a> {
     /// separate lines, and explicitly contrasts that with inner classes, which
     /// "use single-line declarations". Splitting here is what makes the two
     /// forms come out as the guide writes them.
+    ///
+    /// The break is hard either way round: this never wraps because the line
+    /// grew too long, and never joins because it would fit. A project that has
+    /// settled on the joined form says so with
+    /// [`ClassDeclaration::SingleLine`].
     fn class_name_decl(&self, node: SyntaxNode<'a>) -> Doc {
         let name = tokens(node)
             .into_iter()
@@ -332,7 +350,20 @@ impl<'a> Lowerer<'a> {
             .map_or(String::new(), |token| self.text(token).to_string());
         let mut parts = vec![Doc::text(format!("class_name {name}"))];
         if let Some(extends) = node.child_node_of(ExtendsDecl) {
-            parts.push(Doc::hard_line());
+            // A comment written between the two belongs to the `extends`. It
+            // also settles the layout on its own: a joined line has nowhere to
+            // put it, so the presence of one keeps the two lines apart whatever
+            // the setting says.
+            let between = self.leading_comments_of(extends);
+            if between.is_empty() && self.class_declaration == ClassDeclaration::SingleLine {
+                parts.push(Doc::text(" "));
+            } else {
+                parts.push(Doc::hard_line());
+                for comment in between {
+                    parts.push(Doc::text(comment));
+                    parts.push(Doc::hard_line());
+                }
+            }
             parts.push(self.extends_decl(extends));
         }
         Doc::concat(parts)
