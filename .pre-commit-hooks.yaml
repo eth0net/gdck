@@ -1,0 +1,41 @@
+# Hook definitions for `prek` and `pre-commit`, which read this same file.
+#
+# `hooks/gdck` fetches the prebuilt binary for the revision the caller pinned,
+# so none of these need a Rust toolchain. See docs/HOOKS.md for the config to
+# put in a project, in either tool's format.
+#
+# `gdck-format` and `gdck-lint` are the direct replacements for `gdformat` and
+# `gdlint`. `gdck-fix` and `gdck-check` do both jobs in one pass, which is what
+# a project moving over is usually better off with.
+
+- id: gdck-format
+  name: gdck format
+  description: Format GDScript to the official style guide
+  entry: hooks/gdck format --fix
+  language: script
+  types: [gdscript]
+  require_serial: true
+
+- id: gdck-lint
+  name: gdck lint
+  description: Report GDScript lint problems
+  entry: hooks/gdck lint
+  language: script
+  types: [gdscript]
+  require_serial: true
+
+- id: gdck-fix
+  name: gdck fix
+  description: Format GDScript and apply every fixable lint rule
+  entry: hooks/gdck fix
+  language: script
+  types: [gdscript]
+  require_serial: true
+
+- id: gdck-check
+  name: gdck check
+  description: Report formatting and lint problems without changing anything
+  entry: hooks/gdck check
+  language: script
+  types: [gdscript]
+  require_serial: true

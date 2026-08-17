@@ -51,6 +51,31 @@ test is `trailing-whitespace`.
 
 [prek]: https://prek.j178.dev
 
+### The hooks this project ships
+
+Separate from the hooks used to develop it, `gdck` publishes hook definitions
+for other projects to consume — `.pre-commit-hooks.yaml` and the `hooks/gdck`
+script that fetches the binary. [docs/HOOKS.md](docs/HOOKS.md) documents them.
+
+None of it is reachable from `cargo test`, so it has its own check:
+
+```sh
+cargo build -p gdck
+tools/test-hooks.sh
+```
+
+That runs the hooks under both `prek` and `pre-commit` against a throwaway
+project, then separately downloads the newest published release to prove the
+fetch path still works. It needs `uv` and a network connection. CI runs it on
+every push, along with `shellcheck` over both scripts.
+
+If you edit `hooks/gdck` or anything in `tools/`, the commit hooks run
+`shellcheck` over it, which means having it installed:
+
+```sh
+brew install shellcheck
+```
+
 ## Adding a dependency
 
 The deliverable is a single self-contained binary, which is a statement about

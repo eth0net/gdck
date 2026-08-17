@@ -103,6 +103,36 @@ linter in one step:
 - run: gdck check .
 ```
 
+### As a git hook
+
+`gdck` ships hook definitions for [`prek`](https://prek.j178.dev) and
+[`pre-commit`](https://pre-commit.com). Both read the same file from this
+repository, so either tool works from the same definitions.
+
+```toml
+# prek.toml
+[[repos]]
+repo = "https://github.com/eth0net/gdck"
+rev = "v0.5.2"
+hooks = [{ id = "gdck-fix" }]
+```
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/eth0net/gdck
+    rev: v0.5.2
+    hooks:
+      - id: gdck-fix
+```
+
+The hooks fetch the prebuilt binary for the revision you pinned, so they need
+no Rust toolchain and no Python. `gdck-format` and `gdck-lint` are also
+available as drop-in replacements for `gdformat` and `gdlint`.
+
+[docs/HOOKS.md](docs/HOOKS.md) covers all four hooks, migrating an existing
+`gdtoolkit` config, and why `exclude` behaves differently under a hook.
+
 ## Usage
 
 One rule governs the whole interface:
@@ -290,6 +320,7 @@ it merely failed to understand.
 | `gdck-format` | Done. Wadler pretty printer with safety checks |
 | `gdck-lint` | Done. 33 rules, 10 of them fixable. See [docs/RULES.md](docs/RULES.md) |
 | Every subcommand | Works |
+| Git hooks | Done. `prek` and `pre-commit`. See [docs/HOOKS.md](docs/HOOKS.md) |
 
 The parser handles every file in `gdtoolkit`'s corpus of valid GDScript — 324
 files across its parser, formatter and `gd2py` test suites — and round-trips all

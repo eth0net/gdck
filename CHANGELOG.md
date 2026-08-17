@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Git hooks, for `prek` and `pre-commit`.
+
+### Added
+
+- Hook definitions in `.pre-commit-hooks.yaml`, read by both [`prek`][prek] and
+  [`pre-commit`][pre-commit]: `gdck-format` and `gdck-lint` to drop in where
+  `gdformat` and `gdlint` were, and `gdck-fix` and `gdck-check` to do both jobs
+  in one pass over each file. `prek`'s native `prek.toml` and
+  `.pre-commit-config.yaml` are both documented.
+- `docs/HOOKS.md`, covering the four hooks, migrating an existing `gdtoolkit`
+  config, and the caching the hook does.
+
+  The hook fetches the prebuilt binary for whichever revision was pinned,
+  reading the version from the checked-out `Cargo.toml` so there is no version
+  string to keep in step by hand. Both runners can bootstrap a Rust toolchain
+  and build a hook from source, and neither is asked to: that would mean a
+  ~300MB download and a full compile, on every machine and every cold CI
+  runner, for a binary already published for seven targets. The tool being
+  replaced installs with `pip`, so a first run measured in minutes is not the
+  bar to clear. A warm run of both hooks takes 0.075s.
+
+  Worth knowing when migrating: `files.exclude` does not apply under a hook.
+  It decides what a directory walk finds, and a hook run walks nothing — the
+  file list arrives already chosen. Since `addons` is excluded by default, a
+  hook reports on addon code that `gdck check .` stays quiet about. This is
+  what `gdformat` and `gdlint` do as hooks too, so a migrated config behaves
+  as it did.
+
 ## [0.5.2] - 2026-08-17
 
 One fix: a class docstring followed by a blank line ended up documenting
@@ -430,3 +458,6 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 [0.1.0]: https://github.com/eth0net/gdck/releases/tag/v0.1.0
 
 [#1]: https://github.com/eth0net/gdck/issues/1
+
+[prek]: https://prek.j178.dev
+[pre-commit]: https://pre-commit.com
