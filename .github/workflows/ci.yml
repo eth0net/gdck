@@ -67,6 +67,24 @@ jobs:
           # deny.toml with a reason, not a weaker setting here.
           command-arguments: --deny warnings
 
+  hooks:
+    name: git hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v10
+      # None of this is reachable from `cargo test`: the hook definitions, the
+      # file selection and the script that fetches the binary all sit outside
+      # the Rust build, so a break in them would otherwise reach a user before
+      # it reached a maintainer.
+      - run: shellcheck hooks/gdck tools/test-hooks.sh
+      - run: cargo build -p gdck
+      # Runs both `prek` and `pre-commit` against a sample project, and
+      # separately proves the fetch path by downloading the newest release.
+      - run: tools/test-hooks.sh
+
   corpus:
     name: corpus conformance
     runs-on: ubuntu-latest

@@ -1,0 +1,79 @@
+#!/bin/sh
+# Runs the `gdck` release that matches the revision this hook was pinned to.
+#
+# `pre-commit` and `prek` both clone this repository at the `rev` from the
+# caller's config, then run this script. So the version to fetch is not a
+# constant kept in step by hand: it is whatever the checked-out `Cargo.toml`
+# says, which is exactly the tag the caller asked for.
+#
+# The binary comes from the release's own installer rather than `cargo install`.
+# Both hook runners can bootstrap a Rust toolchain, but doing so means a ~300MB
+# download and a full compile for a tool we already ship prebuilt for seven
+# targets. Fetching the archive takes seconds and needs no toolchain, which
+# matters when the tool being replaced installs with `pip`.
+set -eu
+
+# CDPATH is cleared for the one command: with it set, `cd` can land somewhere
+# else entirely and print where it went.
+repo=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+
+# The first `version` in Cargo.toml is `[workspace.package]`'s, which is the
+# one the release was cut from. Everything below it is a dependency's.
+version=$(
+	sed -n 's/^version = "\([^"]*\)".*/\1/p' "$repo/Cargo.toml" | head -n 1
+)
+if [ -z "$version" ]; then
+	echo "gdck hook: no version in $repo/Cargo.toml" >&2
+	exit 1
+fi
+
+# An escape hatch for anyone who would rather run a build of their own, and
+# what the test suite uses so it never reaches the network.
+if [ -n "${GDCK_HOOK_BINARY:-}" ]; then
+	exec "$GDCK_HOOK_BINARY" "$@"
+fi
+
+cache="${GDCK_HOOK_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/gdck-hook}"
+binary="$cache/$version/gdck"
+
+if [ ! -x "$binary" ]; then
+	mkdir -p "$cache"
+	# Staged in a scratch directory and moved into place in one step, because
+	# the caller may be running the format and lint hooks at the same time.
+	# A half-written directory must never be visible under the name that the
+	# check above treats as "already installed".
+	staging=$(mktemp -d "$cache/.staging.XXXXXX")
+	trap 'rm -rf "$staging"' EXIT INT TERM
+
+	url="https://github.com/eth0net/gdck/releases/download/v$version/gdck-installer.sh"
+	if command -v curl >/dev/null 2>&1; then
+		curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$staging/installer.sh"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -qO "$staging/installer.sh" "$url"
+	else
+		echo "gdck hook: needs curl or wget to fetch gdck $version" >&2
+		exit 1
+	fi
+
+	# NO_MODIFY_PATH because a hook has no business editing shell profiles:
+	# the binary is addressed here by its full path and nowhere else.
+	GDCK_INSTALL_DIR="$staging/bin" \
+		GDCK_NO_MODIFY_PATH=1 \
+		sh "$staging/installer.sh" --quiet </dev/null
+
+	# `mv` fails if another hook won the race and created the directory first.
+	# That is success, not failure: what it wanted is now there either way.
+	mv "$staging/bin" "$cache/$version" 2>/dev/null || :
+	if [ ! -x "$binary" ]; then
+		echo "gdck hook: installer left no binary at $binary" >&2
+		exit 1
+	fi
+
+	# Explicitly, rather than leaving it to the trap: the `exec` below replaces
+	# this shell, so an EXIT trap would never run and the scratch directory
+	# would be left in the cache for good.
+	rm -rf "$staging"
+	trap - EXIT INT TERM
+fi
+
+exec "$binary" "$@"

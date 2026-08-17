@@ -61,4 +61,9 @@ hooks = [
   { id = "cargo-test-doc", name = "cargo test --doc", entry = "cargo test --doc --workspace", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true, stages = ["pre-push"] },
 
   { id = "cargo-msrv", name = "cargo check (MSRV 1.88)", entry = "cargo +1.88.0 check --workspace", language = "system", files = '\.rs$|(^|/)Cargo\.(toml|lock)$', pass_filenames = false, require_serial = true, stages = ["pre-push"] },
+
+  # The git hooks this project ships are shell, so neither clippy nor the test
+  # suite can see them. Scoped to those two files, which change rarely, so a
+  # missing `shellcheck` is only ever in the way of someone editing them.
+  { id = "shellcheck", name = "shellcheck", entry = "shellcheck", language = "system", files = '^(hooks/gdck|tools/.*\.sh)$' },
 ]
