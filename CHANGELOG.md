@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.2] - 2026-08-17
 
+One fix: a class docstring followed by a blank line ended up documenting
+nothing.
+
 ### Fixed
 
 - A class docstring separated from the declaration below it by a blank line was
@@ -28,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the number of files the formatter wanted to rewrite fell from 238 to 228.
 
 ## [0.5.1] - 2026-08-16
+
+One fix: `--fix-order` was refusing whole files over a trailing comment.
 
 ### Fixed
 
