@@ -1,8 +1,8 @@
 # Hook definitions for `prek` and `pre-commit`, which read this same file.
 #
 # `hooks/gdck` fetches the prebuilt binary for the revision the caller pinned,
-# so none of these need a Rust toolchain. See docs/HOOKS.md for the config to
-# put in a project, in either tool's format.
+# so none of these need a Rust toolchain. `hooks/examples/` holds a ready-made
+# config for each tool, and docs/HOOKS.md explains them.
 #
 # `gdck-format` and `gdck-lint` are the direct replacements for `gdformat` and
 # `gdlint`. `gdck-fix` and `gdck-check` do both jobs in one pass, which is what
