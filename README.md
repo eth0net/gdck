@@ -113,7 +113,7 @@ repository, so either tool works from the same definitions.
 # prek.toml
 [[repos]]
 repo = "https://github.com/eth0net/gdck"
-rev = "v0.5.2"
+rev = "v0.6.0"
 hooks = [{ id = "gdck-fix" }]
 ```
 
@@ -121,7 +121,7 @@ hooks = [{ id = "gdck-fix" }]
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/eth0net/gdck
-    rev: v0.5.2
+    rev: v0.6.0
     hooks:
       - id: gdck-fix
 ```
