@@ -7,6 +7,13 @@ what runs.
 
 Nothing here needs Python, and nothing here needs a Rust toolchain.
 
+Ready-to-copy configurations for both are in
+[`hooks/examples/`](../hooks/examples): [`prek.toml`](../hooks/examples/prek.toml)
+and
+[`.pre-commit-config.yaml`](../hooks/examples/.pre-commit-config.yaml).
+Take the one for your tool, set `rev`, and you are done. Both are run by this
+project's own test suite, so neither can drift from the hooks it names.
+
 [prek]: https://prek.j178.dev
 [pre-commit]: https://pre-commit.com
 

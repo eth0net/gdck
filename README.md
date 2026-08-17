@@ -130,6 +130,8 @@ The hooks fetch the prebuilt binary for the revision you pinned, so they need
 no Rust toolchain and no Python. `gdck-format` and `gdck-lint` are also
 available as drop-in replacements for `gdformat` and `gdlint`.
 
+Both files above are in [`hooks/examples/`](hooks/examples) in full, with the
+alternatives commented, ready to copy.
 [docs/HOOKS.md](docs/HOOKS.md) covers all four hooks, migrating an existing
 `gdtoolkit` config, and why `exclude` behaves differently under a hook.
 

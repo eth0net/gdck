@@ -16,6 +16,9 @@ Git hooks, for `prek` and `pre-commit`.
   `gdformat` and `gdlint` were, and `gdck-fix` and `gdck-check` to do both jobs
   in one pass over each file. `prek`'s native `prek.toml` and
   `.pre-commit-config.yaml` are both documented.
+- Ready-to-copy configurations in `hooks/examples/`, one per tool, with the
+  alternatives commented rather than left to the reader. Both are what the
+  hook test suite runs, so a sample cannot drift from the hooks it names.
 - `docs/HOOKS.md`, covering the four hooks, migrating an existing `gdtoolkit`
   config, and the caching the hook does.
 

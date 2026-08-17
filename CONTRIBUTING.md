@@ -64,10 +64,16 @@ cargo build -p gdck
 tools/test-hooks.sh
 ```
 
-That runs the hooks under both `prek` and `pre-commit` against a throwaway
-project, then separately downloads the newest published release to prove the
-fetch path still works. It needs `uv` and a network connection. CI runs it on
-every push, along with `shellcheck` over both scripts.
+That runs the sample configurations from `hooks/examples/` under both `prek`
+and `pre-commit` against a throwaway project, checks every hook id in
+`.pre-commit-hooks.yaml` resolves, then separately downloads the newest
+published release to prove the fetch path still works. It needs `uv` and a
+network connection. CI runs it on every push, along with `shellcheck` over both
+scripts.
+
+A new hook in `.pre-commit-hooks.yaml` is picked up by the id check on its own,
+since that reads the ids from the file. Mentioning it in the two samples is the
+part nothing checks for you.
 
 If you edit `hooks/gdck` or anything in `tools/`, the commit hooks run
 `shellcheck` over it, which means having it installed:

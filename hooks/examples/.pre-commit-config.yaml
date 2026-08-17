@@ -1,0 +1,36 @@
+# Sample `pre-commit` configuration for a Godot project.
+#
+# Copy this to the root of your project as `.pre-commit-config.yaml`, set `rev`
+# to the release you want, and run `pre-commit install`.
+#
+# `prek` reads this format too, so it is the one to use if your project has to
+# work with both tools. If prek is all you use, `prek.toml` in this directory
+# is the nicer format.
+#
+# https://github.com/eth0net/gdck/blob/main/docs/HOOKS.md
+
+repos:
+  - repo: https://github.com/eth0net/gdck
+    rev: v0.5.2
+    hooks:
+      # Formats and applies every fixable lint rule in a single pass over each
+      # file. This is the one to use unless you have a reason not to.
+      - id: gdck-fix
+
+      # Coming from gdtoolkit and want to keep the split it had? Use these two
+      # instead of `gdck-fix` — never alongside it, or the second hook re-reads
+      # what the first just wrote.
+      # - id: gdck-format
+      # - id: gdck-lint
+
+      # Report without changing anything, for a project that would rather see
+      # the problems than have them fixed under it.
+      # - id: gdck-check
+
+      # `files.exclude` in your gdck.toml does not apply here: it decides what
+      # a directory walk finds, and a hook run is handed its files. Since
+      # `addons` is excluded by default, a hook reports on addon code that
+      # `gdck check .` stays quiet about. To keep it out:
+      #
+      # - id: gdck-fix
+      #   exclude: ^addons/
