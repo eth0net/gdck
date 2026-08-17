@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-17
+
 ### Fixed
 
 - A class docstring separated from the declaration below it by a blank line was
@@ -25,11 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before the first `test_` function, were the common shape hit: on one project
   the number of files the formatter wanted to rewrite fell from 238 to 228.
 
-[#1]: https://github.com/eth0net/gdck/issues/1
-
 ## [0.5.1] - 2026-08-16
-
-One fix: `--fix-order` was refusing whole files over a trailing comment.
 
 ### Fixed
 
@@ -417,10 +415,13 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 - `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and
   the planned rule catalogue.
 
-[Unreleased]: https://github.com/eth0net/gdck/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/eth0net/gdck/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/eth0net/gdck/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/eth0net/gdck/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/eth0net/gdck/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/eth0net/gdck/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/eth0net/gdck/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eth0net/gdck/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eth0net/gdck/releases/tag/v0.1.0
+
+[#1]: https://github.com/eth0net/gdck/issues/1
