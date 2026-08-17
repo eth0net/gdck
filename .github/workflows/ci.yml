@@ -74,7 +74,9 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: astral-sh/setup-uv@v10
+      # Pinned exactly: this action publishes no moving major tag, so `@v10`
+      # does not resolve.
+      - uses: astral-sh/setup-uv@v10.0.1
       # None of this is reachable from `cargo test`: the hook definitions, the
       # file selection and the script that fetches the binary all sit outside
       # the Rust build, so a break in them would otherwise reach a user before
