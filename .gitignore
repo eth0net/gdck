@@ -3,3 +3,6 @@
 *.pdb
 
 .DS_Store
+
+# Local issue notes, kept out of the repo by intent: the file says so itself.
+ISSUES.md
