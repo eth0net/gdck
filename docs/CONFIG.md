@@ -144,16 +144,28 @@ limit the `max-returns` rule reports on. The rules themselves are in
 | `disable` | Rule names switched off for the whole project. `gdtoolkit`'s names work here too. |
 
 `declaration-order` takes `gdtoolkit`'s fourteen group names, in the order the
-project wants them:
+project wants them. Left alone, that order is the style guide's:
 
 ```toml
 [lint]
 declaration-order = [
-  "tools", "classnames", "extends", "docstrings", "signals", "enums",
-  "consts", "exports", "pubvars", "prvvars", "onreadypubvars",
-  "onreadyprvvars", "staticvars", "others",
+  "tools", "classnames", "extends", "docstrings", "signals", "enums", "consts", "staticvars",
+  "exports", "pubvars", "prvvars", "onreadypubvars", "onreadyprvvars", "others",
 ]
 ```
+
+Writing that out changes nothing — it is what `gdck` already checks. `gdck
+config` prints it, so the order a run is holding your code to is always
+something you can read rather than infer, and `gdck init` writes it commented
+out like every other untouched setting.
+
+Note where `staticvars` falls: eighth, directly after `consts` and before
+`exports`, which is [where the guide puts static variables][order]. An earlier
+version of this page showed it last instead. Nothing in `gdck` behaved that
+way, but a project that set out to correct the difference would have written a
+fourteen-line block that did nothing.
+
+[order]: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html#code-order
 
 A `gdlintrc` with `class-definitions-order` is read into this, so a project
 that already pinned an order keeps it without writing anything new.

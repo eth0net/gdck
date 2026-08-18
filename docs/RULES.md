@@ -116,7 +116,7 @@ which is why it reports fewer.
 | Rule | Fixable | Wants |
 |---|---|---|
 | `boolean-operators` | ✓ | `and`, `or` and `not` rather than `&&`, `\|\|` and `!` |
-| `unnecessary-parens` | ✓ | No parentheses around a bare condition |
+| `unnecessary-parens` | ✓ | No parentheses around a bare condition, unless they hold it open across lines |
 | `comment-space` | ✓ | A comment starts with a space; commented-out code does not |
 | `quote-style` | ✓ | Double quotes, unless single quotes need fewer escapes |
 | `number-format` | ✓ | Lowercase hexadecimal, a digit either side of a float's point |
@@ -127,6 +127,27 @@ which is why it reports fewer.
 `quote-style` and `number-format` offer the formatter's own rewrite as the fix,
 by calling into it. Two implementations that disagreed would show up as
 `gdck lint --fix` producing something `gdck format` then changed again.
+
+`unnecessary-parens` says nothing about a condition written across more than
+one line:
+
+```gdscript
+if (
+        alpha
+        and beta
+):
+```
+
+GDScript has no other way to break a condition, so those parentheses are
+load-bearing and taking them away stops the file parsing. This is the shape the
+formatter itself produces for a condition too long to fit, so the rule reported
+on `gdck`'s own output; the safety checks then refused the fix, leaving a
+warning that nothing could clear and no way out but switching the rule off for
+the whole project.
+
+The test is the whole span rather than where the newline falls, which gives up
+a report on `if (foo(\n\ta,\n)):` — parentheses that could go after all. A
+report not made is a better failure than one that cannot be acted on.
 
 `comment-space` has to tell a comment from disabled code, which the guide draws
 by intent rather than by syntax:

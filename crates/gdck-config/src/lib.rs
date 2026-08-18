@@ -150,16 +150,43 @@ pub enum DeclarationGroup {
     Signals,
     Enums,
     Consts,
+    StaticVars,
     Exports,
     PubVars,
     PrvVars,
     OnreadyPubVars,
     OnreadyPrvVars,
-    StaticVars,
     Others,
 }
 
 impl DeclarationGroup {
+    /// The order the style guide gives, which is what `code-order` checks
+    /// unless a project names one of its own.
+    ///
+    /// Nothing reads the variants' declaration order — there is no `Ord` here
+    /// and no cast to an integer — so this is the single place that says what
+    /// the default order *is*. It had been implicit in the `Bucket` enum over
+    /// in the linter, which left nothing to print and nothing to check a
+    /// document against, and the documented example drifted out of step as a
+    /// result: it showed `staticvars` last, where the guide puts it eighth,
+    /// directly after constants.
+    pub const GUIDE_ORDER: [Self; 14] = [
+        Self::Tools,
+        Self::ClassNames,
+        Self::Extends,
+        Self::Docstrings,
+        Self::Signals,
+        Self::Enums,
+        Self::Consts,
+        Self::StaticVars,
+        Self::Exports,
+        Self::PubVars,
+        Self::PrvVars,
+        Self::OnreadyPubVars,
+        Self::OnreadyPrvVars,
+        Self::Others,
+    ];
+
     /// The `gdtoolkit` spelling, which is also `gdck`'s.
     #[must_use]
     pub fn name(self) -> &'static str {
