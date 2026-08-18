@@ -124,6 +124,35 @@ impl<'a> Lowerer<'a> {
             })
     }
 
+    /// A trailing comment at the end of a declaration, which nothing follows.
+    ///
+    /// Written but not measured. At this position the only thing its width can
+    /// change is whether the declaration's own value breaks — and breaking a
+    /// value to make room for a comment restructures code around prose the
+    /// formatter cannot edit:
+    ///
+    /// ```gdscript
+    /// const A: StringName = (
+    ///         &"a"
+    /// ) ## A comment long enough to push the line over on its own.
+    /// ```
+    ///
+    /// Nobody writes that, and it does not solve the author's problem, which
+    /// is the comment. Left alone, the line stays as written and
+    /// `line-too-long` names the real cause.
+    ///
+    /// Inside brackets the width still counts, because there a comment decides
+    /// whether the brackets open rather than whether code is rewritten.
+    fn trailing_comment_unmeasured(&self, token: Option<Token>) -> Doc {
+        self.trailing_comment_text(token)
+            .map_or_else(Doc::nil, |comment| {
+                Doc::concat(vec![
+                    Doc::unmeasured(format!(" {comment}")),
+                    Doc::break_parent(),
+                ])
+            })
+    }
+
     /// Comments written on their own lines in front of `node`.
     fn leading_comments_of(&self, node: SyntaxNode<'a>) -> Vec<String> {
         first_significant(node)
@@ -229,7 +258,7 @@ impl<'a> Lowerer<'a> {
             }
             parts.push(self.member(*item, scope));
 
-            parts.push(self.trailing_comment(last_significant(*item)));
+            parts.push(self.trailing_comment_unmeasured(last_significant(*item)));
 
             previous = Some(*item);
         }

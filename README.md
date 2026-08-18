@@ -113,7 +113,7 @@ repository, so either tool works from the same definitions.
 # prek.toml
 [[repos]]
 repo = "https://github.com/eth0net/gdck"
-rev = "v0.6.0"
+rev = "v0.7.0"
 hooks = [{ id = "gdck-fix" }]
 ```
 
@@ -121,7 +121,7 @@ hooks = [{ id = "gdck-fix" }]
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/eth0net/gdck
-    rev: v0.6.0
+    rev: v0.7.0
     hooks:
       - id: gdck-fix
 ```
@@ -320,7 +320,7 @@ it merely failed to understand.
 | `gdck-syntax` — parser | Done. Full declaration and expression grammar, error recovery |
 | `gdck-config` | Done. `gdck.toml`, plus `gdformatrc` and `gdlintrc` for compatibility |
 | `gdck-format` | Done. Wadler pretty printer with safety checks |
-| `gdck-lint` | Done. 33 rules, 10 of them fixable. See [docs/RULES.md](docs/RULES.md) |
+| `gdck-lint` | Done. 36 rules, 12 of them fixable. See [docs/RULES.md](docs/RULES.md) |
 | Every subcommand | Works |
 | Git hooks | Done. `prek` and `pre-commit`. See [docs/HOOKS.md](docs/HOOKS.md) |
 

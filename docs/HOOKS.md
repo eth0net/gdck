@@ -43,7 +43,7 @@ documents first.
 ```toml
 [[repos]]
 repo = "https://github.com/eth0net/gdck"
-rev = "v0.6.0"
+rev = "v0.7.0"
 hooks = [
   { id = "gdck-fix" },
 ]
@@ -63,7 +63,7 @@ config keeps working as-is — see the next section for its shape.
 ```yaml
 repos:
   - repo: https://github.com/eth0net/gdck
-    rev: v0.6.0
+    rev: v0.7.0
     hooks:
       - id: gdck-fix
 ```
@@ -91,7 +91,7 @@ hooks = [
 # after
 [[repos]]
 repo = "https://github.com/eth0net/gdck"
-rev = "v0.6.0"
+rev = "v0.7.0"
 hooks = [
   { id = "gdck-format" },
   { id = "gdck-lint" },
@@ -112,7 +112,7 @@ repos:
 # after
 repos:
   - repo: https://github.com/eth0net/gdck
-    rev: v0.6.0
+    rev: v0.7.0
     hooks:
       - id: gdck-format
       - id: gdck-lint

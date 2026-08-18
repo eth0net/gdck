@@ -53,6 +53,15 @@ enum DocKind {
     Flat(Box<Doc>),
     /// Text that may itself span lines, written out exactly as given.
     Verbatim(String),
+    /// Text that is written but not measured.
+    ///
+    /// A trailing comment is the only thing this is for. It cannot be
+    /// reflowed and it cannot be moved, so letting its width decide whether
+    /// the code before it breaks means restructuring code to make room for
+    /// prose — which is not a trade the author asked for, and not one the
+    /// formatter is able to make well. Its overflow is `line-too-long`'s to
+    /// report.
+    Unmeasured(String),
 }
 
 impl Doc {
@@ -76,6 +85,22 @@ impl Doc {
         );
         Self {
             kind: DocKind::Text(text),
+            hard: false,
+        }
+    }
+
+    /// Text written to the output but invisible to the fit calculation.
+    ///
+    /// See `DocKind::Unmeasured`. Everything queued after it on the line is
+    /// still measured, so this only excuses the text itself.
+    pub(crate) fn unmeasured(text: impl Into<String>) -> Self {
+        let text = text.into();
+        debug_assert!(
+            !text.contains('\n'),
+            "Doc::unmeasured must not contain a newline: {text:?}"
+        );
+        Self {
+            kind: DocKind::Unmeasured(text),
             hard: false,
         }
     }
@@ -247,7 +272,7 @@ pub(crate) fn render(doc: &Doc, width: usize, style: IndentStyle) -> String {
     while let Some((indent, mode, doc)) = stack.pop() {
         match &doc.kind {
             DocKind::Nil => {}
-            DocKind::Text(text) => {
+            DocKind::Text(text) | DocKind::Unmeasured(text) => {
                 if let Some(level) = pending_indent.take() {
                     for _ in 0..level {
                         out.push_str(&unit);
@@ -395,7 +420,8 @@ fn fits(remaining: usize, first: Cmd<'_>, rest: &[Cmd<'_>]) -> bool {
         };
 
         match &doc.kind {
-            DocKind::Nil => {}
+            // `Unmeasured` costs nothing here on purpose: see its definition.
+            DocKind::Nil | DocKind::Unmeasured(_) => {}
             DocKind::Text(text) => remaining -= display_width(text) as isize,
             DocKind::Concat(parts) => {
                 for part in parts.iter().rev() {

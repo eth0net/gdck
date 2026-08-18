@@ -701,4 +701,47 @@ mod tests {
         let second = format_source(&first, &FormatConfig::default()).expect("formats");
         assert_eq!(first, second);
     }
+
+    #[test]
+    fn a_trailing_comment_does_not_make_the_value_wrap() {
+        // The line is over the limit only because of the comment, which the
+        // formatter can neither reflow nor move. Parenthesising the value to
+        // make room restructures code around prose and does not address what
+        // is actually too long; `line-too-long` reports that instead.
+        let source = concat!(
+            "const WATER_COST_MULT: StringName = &\"water_cost_mult\"",
+            " ## Scales the energy a watering swing costs, and then some more.\n"
+        );
+        check(source, source);
+    }
+
+    #[test]
+    fn code_too_long_on_its_own_still_wraps_around_a_comment() {
+        // The other half of the rule: the comment is excused, the code is not.
+        let source = concat!(
+            "const LONG = alpha_value + beta_value + gamma_value + delta_value",
+            " + epsilon_value + zeta_value + eta_value ## ok\n"
+        );
+        let expected = concat!(
+            "const LONG = (\n",
+            "\t\talpha_value\n",
+            "\t\t+ beta_value\n",
+            "\t\t+ gamma_value\n",
+            "\t\t+ delta_value\n",
+            "\t\t+ epsilon_value\n",
+            "\t\t+ zeta_value\n",
+            "\t\t+ eta_value\n",
+            ") ## ok\n"
+        );
+        check(source, expected);
+    }
+
+    #[test]
+    fn a_comment_inside_brackets_still_forces_them_open() {
+        // Only a declaration's own trailing comment is excused. Inside
+        // brackets the width still decides, because there a comment governs
+        // whether the brackets open rather than whether code is rewritten.
+        let source = "var d = {\n\t\"k\": 1, # why\n\t\"j\": 2,\n}\n";
+        check(source, source);
+    }
 }

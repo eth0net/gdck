@@ -1,0 +1,8 @@
+# hooks/examples/ holds the configurations we ship for other projects to copy,
+# not configuration for this one. Without this, prek's workspace discovery
+# finds them, treats hooks/examples/ as a nested project, and tries to install
+# gdck's own hooks at whatever rev the samples pin — which fails outright in
+# the window before that tag is pushed.
+#
+# tools/test-hooks.sh is what actually exercises those files.
+hooks/examples/

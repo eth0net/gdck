@@ -7,10 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-All three found by the first project to adopt `gdck` in earnest, and all three
-about the same thing: the tool telling a project something that was not true.
+## [0.7.0] - 2026-08-18
+
+Three new rules and a set of fixes, all about `gdck` saying something that was
+not so. Some came from the first project to run it in earnest; the rest from
+reading Godot's own GDScript documentation end to end.
+
+### Added
+
+- `doc-tag` reports a `##` tag Godot would ignore ([#3]). The documentation is
+  explicit that a tag "must be at the beginning of a line ... and must have the
+  format `@`, followed by the keyword", and warns that `@tutorial  :` "won't be
+  treated as a valid tag and will be ignored". Ignored in silence: the tutorial
+  link never reaches the help window and nothing says why. The space is
+  fixable; a misspelled keyword is reported and left alone, since which tag was
+  meant is the author's to say. Only a line already reaching for a known tag is
+  reported, so prose about `@export` is not guessed at.
+- `byte-order-mark` reports a leading BOM, which the guide's encoding rules
+  forbid outright ([#4]). Fixable, and it sits with `line-ending` and
+  `final-newline`, which come from the same four bullets.
+- `loop-variable-assignment` reports a write to a `for` variable whose value is
+  then never read ([#6]). "The loop variable is local to the for-loop and
+  assigning to it will not change the value on the array", so
+  `for s in a: s = "x"` writes nothing anywhere while looking like it writes to
+  the collection. Using the loop variable as an ordinary local — assigning and
+  then reading it — is not reported: that is reasonable and common, and a rule
+  that fired on it would be switched off within a day, taking the real findings
+  with it.
 
 ### Fixed
+
+- `check` and `lint` reported a file with syntax errors as clean, and exited
+  zero ([#8]). `parse` reported it and `format` refused to touch it, but the
+  two commands a project actually runs said nothing — a comment in `check`
+  claimed the linter had already reported it, and the linter had not. So
+  `gdck check .`, which the README recommends for CI, went green over files the
+  engine would reject, and a file broken by a bad merge stayed "clean"
+  indefinitely. Both now report the errors and exit non-zero, and neither
+  counts an unparseable file among the clean ones. Expect this to surface
+  breakage that was always there: 73 syntax errors on one addon, 48 across
+  `gdtoolkit`'s own corpus.
+- The formatter no longer wraps a value to make room for a trailing comment
+  ([#2]). A line over the limit *only* because of its comment had its code
+  parenthesised onto its own line to fit — restructuring code around prose the
+  formatter cannot edit, and not addressing what was actually too long. The
+  line is left as written and `line-too-long` names the real cause. Code that
+  overflows on its own still wraps, and a comment inside brackets still forces
+  them open.
+- `prek` treated the sample configurations in `hooks/examples/` as a nested
+  project of this repository. Its workspace discovery found them, then tried to
+  install `gdck`'s own hooks at whatever revision the samples pin — which fails
+  outright in the window before that tag is pushed, so the repository's own
+  commit hooks stopped working while cutting a release. A `.prekignore` keeps
+  discovery out of that directory; `tools/test-hooks.sh` is what exercises
+  those files.
+- A byte-order mark stopped a file parsing at all. It was lexed into the first
+  identifier, so `extends` was never recognised and nothing in the file was
+  understood. It is now taken as trivia — kept in the tree, so the round trip
+  is still byte for byte — which is what lets `byte-order-mark` report it as
+  the style matter it is.
 
 - `unnecessary-parens` reported on the formatter's own output. GDScript has no
   way to break a condition across lines but to parenthesise it, and that is
@@ -45,6 +100,13 @@ about the same thing: the tool telling a project something that was not true.
 - Settings written across several lines are commented line by line. Only the
   first line used to get a `#`, which would have left the rest as live TOML
   that no longer parsed.
+
+### Documentation
+
+- `docs/RULES.md` records the guide's ask for past-tense signal names, and why
+  there is no rule for it ([#5]): telling tense from an identifier means
+  guessing at English morphology, and `damage_taken`, `hit` and `cast` are
+  common enough that it would misfire on ordinary names.
 
 ## [0.6.0] - 2026-08-17
 
@@ -492,7 +554,8 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 - `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and
   the planned rule catalogue.
 
-[Unreleased]: https://github.com/eth0net/gdck/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/eth0net/gdck/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/eth0net/gdck/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/eth0net/gdck/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/eth0net/gdck/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/eth0net/gdck/compare/v0.5.0...v0.5.1
@@ -503,6 +566,12 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 [0.1.0]: https://github.com/eth0net/gdck/releases/tag/v0.1.0
 
 [#1]: https://github.com/eth0net/gdck/issues/1
+[#2]: https://github.com/eth0net/gdck/issues/2
+[#3]: https://github.com/eth0net/gdck/issues/3
+[#4]: https://github.com/eth0net/gdck/issues/4
+[#5]: https://github.com/eth0net/gdck/issues/5
+[#6]: https://github.com/eth0net/gdck/issues/6
+[#8]: https://github.com/eth0net/gdck/issues/8
 
 [prek]: https://prek.j178.dev
 [pre-commit]: https://pre-commit.com

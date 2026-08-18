@@ -5,9 +5,15 @@
 //! each is a line that could be deleted, or one that was meant to say
 //! something else.
 //!
-//! They match `gdtoolkit`'s checks of the same names, deliberately. These are
-//! the findings a project has already triaged, and a reimplementation that
-//! quietly widened one would present old code as newly broken.
+//! Those five match `gdtoolkit`'s checks of the same names, deliberately.
+//! These are the findings a project has already triaged, and a
+//! reimplementation that quietly widened one would present old code as newly
+//! broken.
+//!
+//! `doc-tag` has no counterpart there. It belongs here rather than with the
+//! style rules because a mistyped documentation tag is not a matter of taste:
+//! Godot ignores it in silence, and the documentation the author wrote simply
+//! never appears.
 
 use std::collections::HashMap;
 
@@ -20,6 +26,12 @@ use crate::{Edit, Fix};
 pub(crate) fn check(context: &Context<'_>, sink: &mut Sink) {
     check_duplicated_load(context, sink);
 
+    for token in super::all_tokens(context.root()) {
+        if token.kind == SyntaxKind::DocComment {
+            check_doc_tag(context, sink, token);
+        }
+    }
+
     for node in context.root().descendants() {
         match node.kind() {
             SyntaxKind::SourceFile | SyntaxKind::Block => {
@@ -28,6 +40,7 @@ pub(crate) fn check(context: &Context<'_>, sink: &mut Sink) {
             }
             SyntaxKind::FuncDecl => check_unused_arguments(context, sink, node),
             SyntaxKind::BinaryExpr => check_self_comparison(context, sink, node),
+            SyntaxKind::ForStmt => check_loop_variable_assignment(context, sink, node),
             _ => {}
         }
     }
@@ -289,6 +302,223 @@ fn same_code(context: &Context<'_>, left: SyntaxNode<'_>, right: SyntaxNode<'_>)
     !left.is_empty() && left == spelling(right)
 }
 
+// -- doc-tag ----------------------------------------------------------------
+
+/// The tags Godot recognises in a `##` block.
+///
+/// `@tutorial` also takes a title, as `@tutorial(Title): url`.
+const DOC_TAGS: &[&str] = &["tutorial", "deprecated", "experimental"];
+
+/// A `##` tag Godot will silently ignore.
+///
+/// The documentation is explicit that a tag "must be at the beginning of a
+/// line (ignoring preceding white space) and must have the format `@`,
+/// followed by the keyword", and warns that "if there is any space in between
+/// the tag name and colon, for example `@tutorial  :`, it won't be treated as
+/// a valid tag and will be ignored".
+///
+/// Ignored means ignored in silence. Godot reports nothing, the tutorial link
+/// or the deprecation mark just never reaches the help window, and the author
+/// has no way of finding out short of going to look.
+///
+/// Only something already reaching for a known tag is reported. A `##` line
+/// that happens to start with `@` and resembles no tag — prose about
+/// `@export`, an email address — is left alone, since guessing there would
+/// cost more than the rule is worth.
+fn check_doc_tag(context: &Context<'_>, sink: &mut Sink, token: Token) {
+    let text = context.token_text(token);
+    let Some(body) = text.strip_prefix("##") else {
+        return;
+    };
+    let indent = body.len() - body.trim_start().len();
+    let rest = body.trim_start();
+    let Some(after_at) = rest.strip_prefix('@') else {
+        return;
+    };
+
+    let keyword: String = after_at
+        .chars()
+        .take_while(char::is_ascii_alphanumeric)
+        .collect();
+    if keyword.is_empty() {
+        return;
+    }
+    // Where the `@` sits, for a range that points at the tag itself.
+    let at = token.range.start() + 2 + indent as u32;
+    let tag_len = 1 + keyword.len() as u32;
+    let range = TextRange::new(at, at + tag_len);
+
+    if let Some(known) = DOC_TAGS.iter().find(|tag| **tag == keyword) {
+        // A known keyword, so the only thing that can be wrong is what comes
+        // after it. `@deprecated` and `@experimental` take nothing; only the
+        // ones that take a colon can be spoiled by a space before it.
+        let tail = &after_at[keyword.len()..];
+        let title = if tail.starts_with('(') {
+            tail.find(')').map_or(0, |end| end + 1)
+        } else {
+            0
+        };
+        let after_title = &tail[title..];
+        let spaces = after_title.len() - after_title.trim_start().len();
+        if spaces > 0 && after_title.trim_start().starts_with(':') {
+            let space_at = at + tag_len + title as u32;
+            sink.report_with_fix(
+                "doc-tag",
+                range,
+                format!("`@{known}` is followed by a space before its colon, so Godot ignores it"),
+                Fix::new(vec![Edit::delete(TextRange::new(
+                    space_at,
+                    space_at + spaces as u32,
+                ))]),
+            );
+        }
+        return;
+    }
+
+    // Not a tag Godot knows. Reported only when it is close enough to one to
+    // be an attempt at it rather than prose that opens with an `@`.
+    if let Some(near) = DOC_TAGS.iter().find(|tag| is_near_miss(&keyword, tag)) {
+        sink.report(
+            "doc-tag",
+            range,
+            format!("`@{keyword}` is not a documentation tag; did you mean `@{near}`?"),
+        );
+    }
+}
+
+/// Whether `keyword` is one edit away from `tag`.
+///
+/// One substitution, insertion or deletion. Enough for a typo, tight enough
+/// that an unrelated word starting with `@` is not dragged in.
+fn is_near_miss(keyword: &str, tag: &str) -> bool {
+    if keyword == tag {
+        return false;
+    }
+    let (a, b): (Vec<char>, Vec<char>) = (keyword.chars().collect(), tag.chars().collect());
+    match a.len().abs_diff(b.len()) {
+        0 => a.iter().zip(&b).filter(|(x, y)| x != y).count() == 1,
+        1 => {
+            // The longer one with a single character removed must equal the
+            // shorter: walk both, allowing one skip.
+            let (long, short) = if a.len() > b.len() {
+                (&a, &b)
+            } else {
+                (&b, &a)
+            };
+            let mut skipped = false;
+            let mut j = 0;
+            for &c in long {
+                if j < short.len() && short[j] == c {
+                    j += 1;
+                } else if skipped {
+                    return false;
+                } else {
+                    skipped = true;
+                }
+            }
+            j == short.len()
+        }
+        _ => false,
+    }
+}
+
+// -- loop-variable-assignment -----------------------------------------------
+
+/// Writing to the loop variable, where the value is then never read.
+///
+/// The language reference is direct about it:
+///
+/// > The loop variable is local to the for-loop and assigning to it will not
+/// > change the value on the array.
+///
+/// So `for s in strings: s = "x"` writes nothing anywhere. The author almost
+/// always believed they were writing back into the collection, and nothing
+/// says otherwise — it is a silent no-op.
+///
+/// Using the loop variable as an ordinary local is a different thing and
+/// perfectly reasonable:
+///
+/// ```gdscript
+/// for s in strings:
+///     s = s.strip_edges()
+///     print(s)
+/// ```
+///
+/// That is why the value has to be dead before this reports. A rule that
+/// fired on the above would be switched off within a day, and take the real
+/// findings with it.
+fn check_loop_variable_assignment(context: &Context<'_>, sink: &mut Sink, node: SyntaxNode<'_>) {
+    let Some(variable) = node
+        .child_tokens()
+        .find(|token| token.kind == SyntaxKind::Ident)
+    else {
+        return;
+    };
+    let name = context.token_text(variable);
+    let Some(body) = node.child_node_of(SyntaxKind::Block) else {
+        return;
+    };
+
+    // A nested loop binding the same name would make "which variable is this?"
+    // a question worth answering properly. Rather than answer it badly, say
+    // nothing about either loop.
+    let shadowed = body
+        .descendants()
+        .filter(|inner| inner.kind() == SyntaxKind::ForStmt)
+        .any(|inner| {
+            inner
+                .child_tokens()
+                .find(|token| token.kind == SyntaxKind::Ident)
+                .is_some_and(|token| context.token_text(token) == name)
+        });
+    if shadowed {
+        return;
+    }
+
+    let tokens = significant_tokens(body);
+    for assignment in body
+        .descendants()
+        .filter(|inner| inner.kind() == SyntaxKind::AssignStmt)
+    {
+        // A plain `=`. `+=` and friends read the variable as well, and a
+        // target that is a field or an index — `s.x = 1`, `s[0] = 1` — reaches
+        // through to an object and does have an effect.
+        if assignment.child_token_of(SyntaxKind::Eq).is_none() {
+            continue;
+        }
+        let Some(target) = assignment.child_nodes().next() else {
+            continue;
+        };
+        let target_tokens = significant_tokens(target);
+        if target_tokens.len() != 1 || context.token_text(target_tokens[0]) != name {
+            continue;
+        }
+
+        // Anything after the assignment that names the variable again is a
+        // read of what was just written, which makes it an ordinary local.
+        // The assignment's own right-hand side is excluded by starting at its
+        // end, since `s = s + 1` reads the old value, not the new one.
+        let end = assignment.range().end();
+        let read_later = tokens.iter().any(|token| {
+            token.range.start() >= end
+                && token.kind == SyntaxKind::Ident
+                && context.token_text(*token) == name
+        });
+        if read_later {
+            continue;
+        }
+
+        sink.report(
+            "loop-variable-assignment",
+            assignment.range(),
+            format!(
+                "assigning to `{name}` changes nothing: it is the loop variable, so the \
+                 collection is untouched, and the value is never read"
+            ),
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use gdck_config::LintConfig;
@@ -441,6 +671,117 @@ mod tests {
         assert_eq!(
             fired("func f():\n\tif randi() == randi():\n\t\tpass\n"),
             Vec::<&str>::new()
+        );
+    }
+
+    #[test]
+    fn a_doc_tag_godot_would_ignore_is_reported() {
+        // The documentation warns that a space before the colon makes the tag
+        // invalid, and Godot then drops it without a word.
+        assert_eq!(
+            fired("## Doc.\n## @tutorial  : https://example.com\nextends Node\n"),
+            vec!["doc-tag"]
+        );
+        assert_eq!(
+            fixed("## Doc.\n## @tutorial  : https://example.com\nextends Node\n"),
+            "## Doc.\n## @tutorial: https://example.com\nextends Node\n"
+        );
+        // The titled form has the same trap after the closing bracket.
+        assert_eq!(
+            fixed("## @tutorial(Two)  : https://example.com\nextends Node\n"),
+            "## @tutorial(Two): https://example.com\nextends Node\n"
+        );
+    }
+
+    #[test]
+    fn a_misspelled_doc_tag_is_named_but_not_fixed() {
+        // Which tag was meant is the author's to say, so this reports only.
+        let source = "## @experimentl\nextends Node\n";
+        assert_eq!(fired(source), vec!["doc-tag"]);
+        assert_eq!(fixed(source), source);
+    }
+
+    #[test]
+    fn well_formed_tags_and_ordinary_prose_are_left_alone() {
+        for source in [
+            "## @tutorial: https://example.com\nextends Node\n",
+            "## @tutorial(Title): https://example.com\nextends Node\n",
+            "## @deprecated\nextends Node\n",
+            "## @experimental\nextends Node\n",
+            // Prose that opens with an `@` and is not reaching for a tag.
+            "## @export is written about here, not used.\nextends Node\n",
+            "## @someunrelatedthing\nextends Node\n",
+            // A plain comment is not a documentation comment at all.
+            "# @tutorial  : https://example.com\nextends Node\n",
+        ] {
+            assert_eq!(fired(source), Vec::<&str>::new(), "for {source:?}");
+        }
+    }
+
+    #[test]
+    fn a_dead_write_to_the_loop_variable_is_reported() {
+        assert_eq!(
+            fired("func f(a):\n\tfor s in a:\n\t\ts = \"x\"\n"),
+            vec!["loop-variable-assignment"]
+        );
+    }
+
+    #[test]
+    fn using_the_loop_variable_as_a_local_is_left_alone() {
+        // The value is read after the write, so this is an ordinary local and
+        // the author knows what they are doing.
+        assert_eq!(
+            fired("func f(a):\n\tfor s in a:\n\t\ts = s.strip_edges()\n\t\tprint(s)\n"),
+            Vec::<&str>::new()
+        );
+    }
+
+    #[test]
+    fn writing_through_the_loop_variable_is_left_alone() {
+        // `n.add_to_group(...)` is the docs' own counter-example: calling a
+        // method on the loop variable does reach the object.
+        assert_eq!(
+            fired("func f(a):\n\tfor n in a:\n\t\tn.add_to_group(\"g\")\n"),
+            Vec::<&str>::new()
+        );
+        // A field or an index reaches through in the same way.
+        assert_eq!(
+            fired("func f(a):\n\tfor n in a:\n\t\tn.x = 1\n"),
+            Vec::<&str>::new()
+        );
+        assert_eq!(
+            fired("func f(a):\n\tfor n in a:\n\t\tn[0] = 1\n"),
+            Vec::<&str>::new()
+        );
+    }
+
+    #[test]
+    fn a_compound_assignment_reads_the_variable_so_is_left_alone() {
+        assert_eq!(
+            fired("func f(a):\n\tfor s in a:\n\t\ts += \"x\"\n"),
+            Vec::<&str>::new()
+        );
+    }
+
+    #[test]
+    fn a_nested_loop_binding_the_same_name_is_reported_once() {
+        // The write belongs to the inner `s` and is dead, so it is a real
+        // finding — but only the inner loop may claim it. Without the guard
+        // the outer loop reported the same line a second time, as though its
+        // own variable had been written.
+        assert_eq!(
+            fired("func f(a):\n\tfor s in a:\n\t\tfor s in a:\n\t\t\ts = \"x\"\n"),
+            vec!["loop-variable-assignment"]
+        );
+    }
+
+    #[test]
+    fn an_outer_loop_does_not_claim_an_inner_loops_write() {
+        // Different names, so no shadowing: the inner write is the inner
+        // variable's, and the outer variable is never written at all.
+        assert_eq!(
+            fired("func f(a):\n\tfor s in a:\n\t\tfor t in a:\n\t\t\tt = \"x\"\n"),
+            vec!["loop-variable-assignment"]
         );
     }
 }

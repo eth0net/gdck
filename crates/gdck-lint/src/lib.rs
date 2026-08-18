@@ -264,6 +264,13 @@ pub const RULES: &[Rule] = &[
         aliases: &[],
     },
     Rule {
+        name: "byte-order-mark",
+        description: "the guide asks for UTF-8 without a byte-order mark",
+        severity: Severity::Warning,
+        fixable: true,
+        aliases: &[],
+    },
+    Rule {
         name: "final-newline",
         description: "files end with exactly one line feed",
         severity: Severity::Warning,
@@ -281,6 +288,20 @@ pub const RULES: &[Rule] = &[
     Rule {
         name: "unnecessary-parens",
         description: "no parentheses around a bare condition",
+        severity: Severity::Warning,
+        fixable: true,
+        aliases: &[],
+    },
+    Rule {
+        name: "loop-variable-assignment",
+        description: "assigning to a loop variable does not change the collection",
+        severity: Severity::Warning,
+        fixable: false,
+        aliases: &[],
+    },
+    Rule {
+        name: "doc-tag",
+        description: "a `##` tag Godot would ignore, so the documentation never appears",
         severity: Severity::Warning,
         fixable: true,
         aliases: &[],
