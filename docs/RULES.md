@@ -56,10 +56,26 @@ And a name that holds a *class* may be `PascalCase` whatever else it is:
 | `variable-name` | `var x`, `for x in` | `snake_case` | `class-variable-name`, `function-variable-name`, `loop-variable-name`, `class-load-variable-name`, `function-preload-variable-name` |
 | `argument-name` | parameters, including a setter's | `snake_case` | `function-argument-name` |
 | `constant-name` | `const X` | `CONSTANT_CASE` | `load-constant-name` |
-| `signal-name` | `signal x` | `snake_case` | |
+| `signal-name` | `signal x` | `snake_case` — see below on tense | |
 | `enum-name` | `enum X` | `PascalCase` | |
 | `enum-member-name` | enum members | `CONSTANT_CASE` | `enum-element-name` |
 | `file-name` | the file itself | `snake_case`, or `PascalCase` — see below | |
+
+The guide also asks for [the past tense in a signal name][signals] —
+`door_opened` rather than `door_open`. `gdck` does not check that, and the
+omission is deliberate.
+
+Telling past tense from an identifier means guessing at English morphology.
+Irregular forms (`damage_taken`), verbs whose past form is unchanged (`hit`,
+`cast`, `set`) and nouns that merely end in `ed` all sit on the boundary, and a
+naive test gets `score_changed` right while calling `damage_taken` wrong. A
+rule that misfires on ordinary names is one a project switches off, and it
+takes the working half of `signal-name` with it.
+
+So it is written here instead, where it costs nothing to be right: name signals
+in the past tense.
+
+[signals]: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html#signals
 
 [naming]: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html#naming-conventions
 
@@ -103,6 +119,7 @@ be told what is wrong without having its files rewritten.
 | `tab-indentation` | | Indentation made of spaces. | `tab-characters` |
 | `line-ending` | ✓ | CRLF or CR. Reported once for the file. | |
 | `final-newline` | ✓ | Exactly one line feed at the end. | |
+| `byte-order-mark` | ✓ | A leading BOM. The guide asks for UTF-8 without one. | |
 
 Every one of these skips lines inside a triple-quoted string, where the spaces
 are part of a value rather than layout.
@@ -250,6 +267,54 @@ to say something else.
 | `expression-not-assigned` | | An expression statement with no effect |
 | `comparison-with-itself` | | Both sides of a comparison being the same expression |
 | `unnecessary-pass` | ✓ | `pass` in a block that has other statements |
+| `doc-tag` | partly | A `##` tag Godot would ignore, so the documentation never appears |
+| `loop-variable-assignment` | | A write to the loop variable that changes nothing |
+
+`loop-variable-assignment` comes from the language reference: "the loop
+variable is local to the for-loop and assigning to it will not change the value
+on the array". So `for s in strings: s = "x"` writes nothing anywhere, and the
+author generally believed they were writing back into the collection.
+
+It reports only when the written value is then never read, because using the
+loop variable as an ordinary local is reasonable and common:
+
+```gdscript
+for s in strings:
+    s = s.strip_edges()   # not reported — the new value is used below
+    print(s)
+```
+
+Calling a method on the loop variable, or writing through a field or an index,
+reaches the object and is never reported — the docs give `n.add_to_group()` as
+the counter-example. A nested loop that binds the same name is left alone
+entirely rather than guessed at.
+
+`doc-tag` is the one here with no `gdtoolkit` counterpart. Godot's
+[documentation comments][doccomments] are explicit that a tag "must be at the
+beginning of a line (ignoring preceding white space) and must have the format
+`@`, followed by the keyword", and warn that with "any space in between the tag
+name and colon, for example `@tutorial  :`, it won't be treated as a valid tag
+and will be ignored".
+
+Ignored in silence: Godot says nothing, and the tutorial link or the
+deprecation mark simply never reaches the help window. Nothing tells the author
+their documentation went missing, which is what makes it worth a rule.
+
+```gdscript
+## @tutorial  : https://example.com   # ignored — a space before the colon
+## @experimentl                       # ignored — not a tag at all
+```
+
+The space is fixable, since removing it is the only thing it could mean. A
+misspelled keyword is reported and left alone, because which tag was meant is
+the author's to say.
+
+Only a line already reaching for a known tag is reported — an exact keyword
+spoiled by punctuation, or one edit away from `@tutorial`, `@deprecated` or
+`@experimental`. A `##` line opening with an `@` that resembles no tag, such as
+prose about `@export`, is not guessed at.
+
+[doccomments]: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_documentation_comments.html
 
 `unused-argument` skips names with a leading underscore, which is the convention
 for an argument that is deliberately unused — an overridden virtual method has

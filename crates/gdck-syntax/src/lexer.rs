@@ -138,6 +138,21 @@ impl<'a> Lexer<'a> {
     }
 
     fn run(mut self) -> LexResult {
+        // A byte-order mark is not part of the program. Left in the stream it
+        // becomes the first character of the first identifier — `extends`
+        // stops being a keyword and the whole file fails to parse — so it is
+        // taken as trivia here. It is kept as a token rather than skipped, or
+        // the tree would no longer reproduce its input byte for byte.
+        //
+        // That it should not be there at all is the `byte-order-mark` rule's
+        // to say. The guide asks for UTF-8 without one, which makes it a
+        // matter of style rather than of syntax.
+        if self.source.starts_with('\u{feff}') {
+            let start = self.pos;
+            self.pos += '\u{feff}'.len_utf8() as u32;
+            self.push(SyntaxKind::Whitespace, TextRange::new(start, self.pos));
+        }
+
         while !self.at_eof() {
             if self.at_line_start && self.indent_significant() {
                 self.lex_line_start();

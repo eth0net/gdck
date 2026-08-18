@@ -27,6 +27,33 @@ pub(crate) fn check(context: &Context<'_>, sink: &mut Sink) {
     check_lines(context, sink, &protected);
     check_line_endings(context, sink);
     check_final_newline(context, sink);
+    check_byte_order_mark(context, sink);
+}
+
+/// A leading byte-order mark, which the guide asks files not to carry.
+///
+/// > Use **UTF-8** encoding without a byte order mark.
+///
+/// It sits with `line-ending` and `final-newline` because all three come from
+/// the same four bullets about encoding, and like them it is unambiguous: the
+/// guide admits no exception, so the mark can simply go.
+///
+/// The lexer takes it as trivia rather than as the first character of the
+/// first identifier — which it once was, leaving `extends` unrecognised and
+/// the file unparseable — so by the time this runs the file has been read
+/// normally and this is the only thing left to say about it.
+fn check_byte_order_mark(context: &Context<'_>, sink: &mut Sink) {
+    const MARK: char = '\u{feff}';
+    if !context.source.starts_with(MARK) {
+        return;
+    }
+    let range = TextRange::new(0, MARK.len_utf8() as u32);
+    sink.report_with_fix(
+        "byte-order-mark",
+        range,
+        "file starts with a byte-order mark; the guide asks for UTF-8 without one",
+        Fix::new(vec![Edit::delete(range)]),
+    );
 }
 
 /// The ranges of every string literal that spans more than one line.
@@ -336,5 +363,30 @@ mod tests {
         let tree = gdck_syntax::parse("var some_name_here = 1234\n");
         let found = crate::lint(&tree, &config);
         assert_eq!(found[0].rule, "line-too-long");
+    }
+
+    #[test]
+    fn a_byte_order_mark_is_reported_and_removed() {
+        let source = "\u{feff}extends Node\n";
+        assert_eq!(fired(source), ["byte-order-mark"]);
+        assert_eq!(fixed(source), "extends Node\n");
+    }
+
+    #[test]
+    fn a_byte_order_mark_no_longer_stops_the_file_parsing() {
+        // It used to be lexed into the first identifier, so `extends` was not
+        // a keyword and nothing after it was understood. The rest of the rules
+        // have to see a normal file.
+        let tree = gdck_syntax::parse("\u{feff}extends Node\n");
+        assert!(!tree.has_errors(), "should parse cleanly");
+        // And the tree still reproduces its input exactly.
+        assert_eq!(tree.text(), "\u{feff}extends Node\n");
+    }
+
+    #[test]
+    fn a_mark_that_is_not_at_the_start_is_not_this_rule() {
+        // U+FEFF inside a string is data, not an encoding artefact.
+        let source = "var a = \"x\u{feff}y\"\n";
+        assert_eq!(fired(source), Vec::<&str>::new());
     }
 }

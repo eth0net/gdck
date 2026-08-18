@@ -520,6 +520,7 @@ fn run_lint(args: &LintArgs, config: &Config) -> Result<ExitCode> {
     let mut reported = 0usize;
     let mut fixed_files = 0usize;
     let mut failed = 0usize;
+    let mut broken = 0usize;
 
     for path in &paths {
         let source = match files::read(path) {
@@ -551,6 +552,7 @@ fn run_lint(args: &LintArgs, config: &Config) -> Result<ExitCode> {
         }
 
         let tree = gdck_syntax::parse(&text);
+        broken += report_syntax_errors(&source.name, &text, &tree);
         let diagnostics = gdck_lint::lint_file(&tree, &config.lint, name);
         reported += diagnostics.len();
         // When the fixed file owns standard output, what is left to report
@@ -569,13 +571,22 @@ fn run_lint(args: &LintArgs, config: &Config) -> Result<ExitCode> {
             plural(fixed_files, "file", "files")
         );
     }
-    if reported == 0 {
+    if reported == 0 && broken == 0 {
         eprintln!(
             "{} {} clean.",
             paths.len(),
             plural(paths.len(), "file is", "files are")
         );
         return Ok(ExitCode::SUCCESS);
+    }
+    if broken > 0 {
+        eprintln!(
+            "Found {broken} syntax {} and {reported} lint {}. \
+             Nothing was linted in a file that does not parse.",
+            plural(broken, "error", "errors"),
+            plural(reported, "problem", "problems")
+        );
+        return Ok(ExitCode::from(EXIT_PROBLEMS));
     }
     eprintln!(
         "Found {reported} {}.",
@@ -588,6 +599,23 @@ fn run_lint(args: &LintArgs, config: &Config) -> Result<ExitCode> {
 ///
 /// The rule name is on every line so that the fix — adding it to `disable` or
 /// to a `# gdlint: ignore=` comment — can be copied straight out of the report.
+/// Report a file's syntax errors, giving back how many there were.
+///
+/// A file that does not parse has not been checked: every rule that would have
+/// run found nothing to say, and the formatter declined to touch it. Saying
+/// nothing here and counting the file among the clean ones states the opposite
+/// of what happened, which is worse than saying nothing at all — a broken file
+/// stays green forever.
+fn report_syntax_errors(name: &str, source: &str, tree: &gdck_syntax::SyntaxTree) -> usize {
+    let index = LineIndex::new(source);
+    let mut count = 0;
+    for error in tree.errors() {
+        println!("{}:{}", name, error.display_with(&index));
+        count += 1;
+    }
+    count
+}
+
 fn print_diagnostics(
     name: &str,
     source: &str,
@@ -633,6 +661,7 @@ fn run_check(args: &CheckArgs, config: &Config) -> Result<ExitCode> {
     let mut unformatted = 0usize;
     let mut reported = 0usize;
     let mut failed = 0usize;
+    let mut broken = 0usize;
 
     for path in &paths {
         let source = match files::read(path) {
@@ -645,6 +674,7 @@ fn run_check(args: &CheckArgs, config: &Config) -> Result<ExitCode> {
         };
 
         let tree = gdck_syntax::parse(&source.text);
+        broken += report_syntax_errors(&source.name, &source.text, &tree);
         let diagnostics = gdck_lint::lint_file(&tree, &config.lint, file_name(path));
         reported += diagnostics.len();
         print_diagnostics(&source.name, &source.text, &diagnostics, false);
@@ -659,8 +689,8 @@ fn run_check(args: &CheckArgs, config: &Config) -> Result<ExitCode> {
                     println!("{}: would be reformatted", source.name);
                 }
             }
-            // A file that does not parse has already been reported on by the
-            // linter, which does not need it to.
+            // Already reported above, as a syntax error rather than as
+            // something to reformat.
             Err(gdck_format::FormatError::Unparseable) => {}
             Err(error) => {
                 eprintln!("gdck: {}: {error}", source.name);
@@ -672,13 +702,23 @@ fn run_check(args: &CheckArgs, config: &Config) -> Result<ExitCode> {
     if failed > 0 {
         return Ok(ExitCode::from(EXIT_ERROR));
     }
-    if reported == 0 && unformatted == 0 {
+    if reported == 0 && unformatted == 0 && broken == 0 {
         eprintln!(
             "{} {} clean.",
             paths.len(),
             plural(paths.len(), "file is", "files are")
         );
         return Ok(ExitCode::SUCCESS);
+    }
+    if broken > 0 {
+        eprintln!(
+            "Found {broken} syntax {}, {reported} lint {} and {unformatted} {} to reformat. \
+             Nothing was checked in a file that does not parse.",
+            plural(broken, "error", "errors"),
+            plural(reported, "problem", "problems"),
+            plural(unformatted, "file", "files")
+        );
+        return Ok(ExitCode::from(EXIT_PROBLEMS));
     }
     eprintln!(
         "Found {reported} lint {} and {unformatted} {} to reformat. Run `gdck fix` to apply.",
