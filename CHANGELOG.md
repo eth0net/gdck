@@ -25,7 +25,7 @@ about the same thing: the tool telling a project something that was not true.
   The guide puts static variables eighth, directly after constants, and so do
   `gdck` and `gdtoolkit`. Nothing behaved the way the document described, but a
   project reading it would conclude `gdck` disagreed with the guide and write a
-  fourteen-line block to correct a difference that was not there.
+  fourteen-name block to correct a difference that was not there.
 
   The same wrong order was in the `DeclarationGroup` enum's own declaration,
   which is where the example came from. Nothing reads it — there is no `Ord`
