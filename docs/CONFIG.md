@@ -163,7 +163,7 @@ Note where `staticvars` falls: eighth, directly after `consts` and before
 `exports`, which is [where the guide puts static variables][order]. An earlier
 version of this page showed it last instead. Nothing in `gdck` behaved that
 way, but a project that set out to correct the difference would have written a
-fourteen-line block that did nothing.
+fourteen-name block that did nothing.
 
 [order]: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html#code-order
 
