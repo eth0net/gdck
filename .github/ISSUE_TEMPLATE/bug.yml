@@ -1,0 +1,64 @@
+name: Bug
+description: gdck produced the wrong output, or reported something it should not have
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The most useful report is a snippet of GDScript, what `gdck` did with
+        it, and what it should have done. Everything else is optional.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `gdck --version`.
+      placeholder: gdck 0.6.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Input
+      description: The smallest `.gd` file that shows the problem.
+      render: gdscript
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      placeholder: gdck format --fix a.gd
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: Output, or the diagnostics printed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+      description: >
+        If the style guide settles it, a link to the section is worth more
+        than anything else here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: >
+        The output of `gdck config`, if the project has a `gdck.toml`,
+        `gdformatrc` or `gdlintrc`. Skip it if you are on the defaults.
+      render: toml
+    validations:
+      required: false
