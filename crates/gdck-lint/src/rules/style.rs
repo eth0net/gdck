@@ -92,6 +92,22 @@ fn check_condition_parens(context: &Context<'_>, sink: &mut Sink, node: SyntaxNo
         return;
     }
 
+    // Parentheses holding a condition open across lines are load-bearing:
+    // GDScript has no other way to break one, so taking them away stops the
+    // file parsing. The formatter emits exactly this shape for a condition too
+    // long to fit, so reporting it would put the linter at odds with output
+    // `gdck` itself wrote — and the safety checks would refuse the fix, leaving
+    // a warning nothing could ever clear.
+    //
+    // Judged on the whole span rather than on where the newline falls, which
+    // gives up a report on `if (foo(\n\ta,\n)):`, where the parentheses could
+    // go after all. A report not made is a better failure than one that cannot
+    // be acted on.
+    let span = condition.range();
+    if context.source[span.start() as usize..span.end() as usize].contains('\n') {
+        return;
+    }
+
     // Every layer at once, so `if ((a)):` takes one run rather than two.
     let mut edits = Vec::new();
     let mut layer = condition;
@@ -567,6 +583,40 @@ mod tests {
         assert_eq!(
             fired("var direction := Vector3(1, 2, 3)\n"),
             Vec::<&str>::new()
+        );
+    }
+
+    #[test]
+    fn parentheses_holding_a_condition_open_across_lines_are_left_alone() {
+        // The formatter produces exactly this for a condition too long for one
+        // line, and GDScript has no other way to break one. Reporting it put
+        // the linter at odds with `gdck`'s own output, and the safety checks
+        // then refused the fix — so the warning could never be cleared.
+        let wrapped = "func f(a, b):\n\tif (\n\t\t\ta\n\t\t\tand b\n\t):\n\t\tpass\n";
+        assert_eq!(fired(wrapped), Vec::<&str>::new());
+        assert_eq!(fixed(wrapped), wrapped);
+
+        // `while` breaks the same way and was reported the same way.
+        let looping = "func f(a, b):\n\twhile (\n\t\t\ta\n\t\t\tand b\n\t):\n\t\tpass\n";
+        assert_eq!(fired(looping), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn parentheses_on_one_line_are_still_reported() {
+        // The rule keeps working where the fix is safe, which is the whole
+        // point of narrowing it rather than switching it off.
+        assert_eq!(
+            fired("func f(a):\n\tif (a):\n\t\tpass\n"),
+            vec!["unnecessary-parens"]
+        );
+        assert_eq!(
+            fixed("func f(a):\n\tif (a):\n\t\tpass\n"),
+            "func f(a):\n\tif a:\n\t\tpass\n"
+        );
+        // Every layer at once, as before.
+        assert_eq!(
+            fixed("func f(a):\n\tif ((a)):\n\t\tpass\n"),
+            "func f(a):\n\tif a:\n\t\tpass\n"
         );
     }
 }

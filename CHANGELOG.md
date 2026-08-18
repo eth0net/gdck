@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+All three found by the first project to adopt `gdck` in earnest, and all three
+about the same thing: the tool telling a project something that was not true.
+
+### Fixed
+
+- `unnecessary-parens` reported on the formatter's own output. GDScript has no
+  way to break a condition across lines but to parenthesise it, and that is
+  what `gdck format` emits for a condition too long to fit — which the linter
+  then flagged as removable. The fix could not be applied either: the safety
+  checks caught that removing them stops the file parsing and refused, so the
+  warning could never be cleared. The only way out was switching the rule off
+  for the whole project, which is what the project did, losing the rule
+  everywhere it did work. It now says nothing about a condition spanning more
+  than one line, and still reports the single-line case it can fix.
+- The `declaration-order` example in `docs/CONFIG.md` put `staticvars` last.
+  The guide puts static variables eighth, directly after constants, and so do
+  `gdck` and `gdtoolkit`. Nothing behaved the way the document described, but a
+  project reading it would conclude `gdck` disagreed with the guide and write a
+  fourteen-line block to correct a difference that was not there.
+
+  The same wrong order was in the `DeclarationGroup` enum's own declaration,
+  which is where the example came from. Nothing reads it — there is no `Ord`
+  and no cast to an integer — so the variants are now in the guide's order, and
+  `DeclarationGroup::GUIDE_ORDER` is the one place that states what the default
+  is.
+
+### Changed
+
+- `gdck config` and `gdck init` write `declaration-order` out. Every other
+  setting already printed its default commented; this one printed nothing at
+  all when a project had not set it, so the order a run was actually holding
+  code to was the single thing neither command would tell you — leaving a
+  document as the only answer, at the point that document was wrong. A project
+  that writes the guide's order explicitly now sees `gdck init` comment it back
+  out, which is the file saying the block changes nothing.
+- Settings written across several lines are commented line by line. Only the
+  first line used to get a `#`, which would have left the rest as live TOML
+  that no longer parsed.
+
 ## [0.6.0] - 2026-08-17
 
 Git hooks, for `prek` and `pre-commit`.

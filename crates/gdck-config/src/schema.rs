@@ -434,7 +434,12 @@ fn put(out: &mut String, defaults: Defaults, at_default: bool, setting: &str) {
 
     // Writing to a String cannot fail, so the result goes nowhere.
     if defaults == Defaults::Comment && at_default {
-        let _ = writeln!(out, "# {setting}");
+        // Line by line: a setting long enough to be written across several of
+        // them would otherwise have only its first line commented, leaving the
+        // rest as live TOML that no longer parses.
+        for line in setting.lines() {
+            let _ = writeln!(out, "# {line}");
+        }
     } else {
         let _ = writeln!(out, "{setting}");
     }
@@ -548,16 +553,19 @@ fn render_lint(out: &mut String, config: &Config, defaults: Defaults) {
         lint.file_name == base.lint.file_name,
         &format!("file-name = {}", quoted(case)),
     );
-    // Only written when a project has one, so it is never at the default.
-    if let Some(order) = &lint.declaration_order {
-        let names: Vec<String> = order.iter().map(|g| g.name().to_string()).collect();
-        put(
-            out,
-            defaults,
-            false,
-            &format!("declaration-order = {}", array(&names)),
-        );
-    }
+    // Always written, even left alone. Every other setting here prints its
+    // default commented out, and this one used to print nothing at all — so
+    // the guide's order was the one thing `gdck config` could not tell you,
+    // and the only remaining answer was a document that had it wrong.
+    let guide = DeclarationGroup::GUIDE_ORDER;
+    let order: &[DeclarationGroup] = lint.declaration_order.as_deref().unwrap_or(&guide);
+    let names: Vec<String> = order.iter().map(|g| g.name().to_string()).collect();
+    put(
+        out,
+        defaults,
+        order == guide,
+        &format!("declaration-order = {}", array_wrapped(&names)),
+    );
     put(
         out,
         defaults,
@@ -594,6 +602,27 @@ fn effective_exclusions(config: &Config) -> Vec<String> {
             .collect();
     }
     config.excluded_dirs.clone()
+}
+
+/// An array broken over several lines, for one too long to read on one.
+///
+/// The width is the style guide's, so a `gdck.toml` this writes is a file the
+/// project could have written by hand.
+fn array_wrapped(items: &[String]) -> String {
+    const WIDTH: usize = 100;
+    let mut lines = vec![String::from("[")];
+    let mut line = String::from(" ");
+    for item in items {
+        let piece = format!(" {},", quoted(item));
+        if line.len() + piece.len() > WIDTH {
+            lines.push(std::mem::take(&mut line));
+            line.push(' ');
+        }
+        line.push_str(&piece);
+    }
+    lines.push(line);
+    lines.push(String::from("]"));
+    lines.join("\n")
 }
 
 fn array(items: &[String]) -> String {
@@ -835,11 +864,27 @@ mod tests {
     #[test]
     fn the_defaults_round_trip_as_the_defaults() {
         let read_back = read_ok(&Config::default().to_toml());
-        // The one difference is deliberate: an empty exclusion list means the
-        // defaults, and `gdck config` writes out what they are.
         assert_eq!(read_back.format, Config::default().format);
-        assert_eq!(read_back.lint, Config::default().lint);
+
+        // Two differences, both the same deliberate thing: a setting whose
+        // default is "unset" is written out as what unset resolves to, so that
+        // `gdck config` answers the question rather than staying silent. An
+        // empty exclusion list means the defaults; no declaration order means
+        // the guide's. Reading either back gives the value, not the absence.
         assert_eq!(read_back.excluded_dirs, crate::DEFAULT_EXCLUDED_DIRS);
+        assert_eq!(
+            read_back.lint.declaration_order,
+            Some(DeclarationGroup::GUIDE_ORDER.to_vec()),
+            "the written order must be the guide's, which is what an unset one means"
+        );
+        assert_eq!(
+            crate::LintConfig {
+                declaration_order: None,
+                ..read_back.lint.clone()
+            },
+            Config::default().lint,
+            "nothing else about the defaults may change on a round trip"
+        );
     }
 
     #[test]

@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use gdck_config::{CodeOrderFix, IndentStyle};
+use gdck_config::{CodeOrderFix, DeclarationGroup, IndentStyle};
 
 /// A throwaway directory tree, removed when the test ends.
 ///
@@ -236,5 +236,18 @@ fn everything_a_project_can_set_survives_the_round_trip_to_disk() {
 
     // And writing it back out and reading it again is the same configuration.
     sandbox.write("again/gdck.toml", &config.to_toml());
-    assert_eq!(resolve(&sandbox.root.join("again")).config, config);
+    let again = resolve(&sandbox.root.join("again")).config;
+
+    // Except for the order, which this project never set. Writing a config out
+    // resolves "unset" to what unset means — the guide's order — so that the
+    // file answers the question instead of leaving the reader to infer it.
+    // Reading it back therefore gives the value rather than the absence, and
+    // the two configurations check the same code.
+    assert_eq!(
+        again.lint.declaration_order,
+        Some(DeclarationGroup::GUIDE_ORDER.to_vec())
+    );
+    let mut normalised = again.clone();
+    normalised.lint.declaration_order = None;
+    assert_eq!(normalised, config);
 }
