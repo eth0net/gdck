@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Rules, settings and hooks
+    url: https://github.com/eth0net/gdck/tree/main/docs
+    about: The rule catalogue, every setting, and the git hooks are documented here.

@@ -1,0 +1,50 @@
+name: Rule proposal
+description: Something the style guide or Godot's docs ask for that gdck does not check
+labels: ["rule"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `gdck` checks the official style guide rather than a house style, so
+        the first question about any new rule is where the guide says it.
+
+  - type: input
+    id: source
+    attributes:
+      label: Where it is written
+      description: A link to the style guide section, or the Godot doc that states it.
+      placeholder: https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html#signals
+    validations:
+      required: true
+
+  - type: textarea
+    id: rule
+    attributes:
+      label: What it would report
+      description: Good and bad examples, ideally the guide's own.
+      render: gdscript
+    validations:
+      required: true
+
+  - type: dropdown
+    id: fixable
+    attributes:
+      label: Could it be fixed automatically?
+      options:
+        - "Yes — the correct output is unambiguous"
+        - "No — the author has to choose"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: falsepositives
+    attributes:
+      label: Where it would be wrong
+      description: >
+        The cases that look like violations but are not. A rule that cannot
+        avoid them is one people switch off, which costs more than it gains —
+        so this field decides whether a rule ships on by default, off, or
+        at all.
+    validations:
+      required: true
