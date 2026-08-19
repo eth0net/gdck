@@ -33,13 +33,15 @@ allow = [
 ]
 
 [bans]
-# Currently achievable: 45 crates and not one duplicate version. Keeping it at
-# `deny` is what stops that drifting one transitive bump at a time.
+# Kept at `deny` so a duplicate has to be argued for rather than accumulate one
+# transitive bump at a time.
 #
-# When this does fire, the fix is usually to align a version rather than to
-# silence it. If two versions genuinely have to coexist for a while, add a
-# `skip` entry here saying which crate and why.
+# When this fires, the fix is usually to align a version rather than to silence
+# it. If two versions genuinely have to coexist for a while, add a `skip` entry
+# here saying which crate and why.
 multiple-versions = "deny"
+
+
 # Off, and only because of a decision recorded in the workspace Cargo.toml: the
 # four `gdck-*` crates depend on each other by path with no version
 # requirement, which reads as a wildcard. `allow-wildcard-paths` is the setting
@@ -51,6 +53,20 @@ multiple-versions = "deny"
 # adding one that did not would be visible in review. Turn this back to "deny"
 # alongside the `version` fields, when there is something to publish.
 wildcards = "allow"
+
+[[bans.skip]]
+# `bitflags` 1.x, reached only through `lsp-types` -> `fluent-uri` 0.1.4, while
+# everything else in the tree is on 2.x via `clap`.
+#
+# Nothing here can align it: `fluent-uri` 0.1.4 is what `lsp-types` 0.97
+# requires, and moving off `lsp-types` would mean either hand-writing the
+# protocol's types or going back to a release that depends on `url` — which
+# carries `idna`'s Unicode tables and costs more than the duplicate does.
+#
+# The cost is a little binary size and no correctness risk. Drop this entry
+# when `lsp-types` moves to a `fluent-uri` on `bitflags` 2.
+name = "bitflags"
+version = "1.3.2"
 
 [sources]
 # Everything comes from crates.io today. A git or alternate-registry dependency
