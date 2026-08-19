@@ -11,6 +11,7 @@
 
 mod files;
 mod json;
+mod lsp;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -56,6 +57,14 @@ enum Command {
     Config(CommonArgs),
     /// Write a gdck.toml, carrying over any gdtoolkit settings found
     Init(InitArgs),
+    /// Run as a language server, speaking LSP over stdin and stdout
+    ///
+    /// Meant to be started by an editor rather than by hand. It reports
+    /// problems as you type, formats a document, and offers each fixable
+    /// rule's own fix as a quick action, using the same settings a
+    /// `gdck check` of the same file would find.
+    #[command(alias = "serve")]
+    Lsp,
 }
 
 /// `gdck init`, which writes the settings already in force into a file.
@@ -209,6 +218,14 @@ fn run(cli: &Cli) -> Result<ExitCode> {
         return run_init(args);
     }
 
+    // The server resolves settings per file as the editor opens them, since a
+    // repository can hold more than one Godot project and the editor is not
+    // started in either of them.
+    if let Command::Lsp = &cli.command {
+        lsp::serve()?;
+        return Ok(ExitCode::SUCCESS);
+    }
+
     let common = match &cli.command {
         Command::Parse(args) => &args.common,
         Command::Check(args) => &args.common,
@@ -216,7 +233,7 @@ fn run(cli: &Cli) -> Result<ExitCode> {
         Command::Format(args) => &args.common,
         Command::Lint(args) => &args.common,
         Command::Config(args) => args,
-        Command::Init(_) => unreachable!("handled above"),
+        Command::Init(_) | Command::Lsp => unreachable!("handled above"),
     };
     let loaded = settings(common)?;
 
@@ -238,7 +255,7 @@ fn run(cli: &Cli) -> Result<ExitCode> {
         Command::Fix(args) => run_fix(args, config),
         Command::Format(args) => run_format(args, config),
         Command::Lint(args) => run_lint(args, config),
-        Command::Config(_) | Command::Init(_) => unreachable!("handled above"),
+        Command::Config(_) | Command::Init(_) | Command::Lsp => unreachable!("handled above"),
     }
 }
 

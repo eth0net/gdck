@@ -158,6 +158,8 @@ gdck parse --tokens a.gd  # dump the token stream
 
 gdck config               # what settings this run would use
 gdck init                 # write them to a gdck.toml
+
+gdck lsp                  # run as a language server, for an editor to start
 ```
 
 `check` and `fix` are the everything-at-once verbs; `format` and `lint` are the
@@ -169,6 +171,22 @@ output carries only content — the diagnostics, the diff under `--diff`, or the
 file itself when reading from `-`.
 
 Exit codes: `0` clean, `1` problems found, `2` the run could not complete.
+
+### In an editor
+
+`gdck lsp` runs as a language server over stdin and stdout: problems as you
+type, format document, and each fixable rule's own fix as a quick action.
+
+```lua
+-- Neovim, with the built-in client
+vim.lsp.config.gdck = { cmd = { "gdck", "lsp" }, filetypes = { "gdscript" } }
+vim.lsp.enable("gdck")
+```
+
+It runs alongside Godot's own language server rather than replacing it: that
+one knows the project, this one knows the style guide.
+[docs/EDITORS.md](docs/EDITORS.md) has configurations for Neovim, Helix, Zed
+and VS Code, and what the server deliberately does not offer.
 
 ### Machine-readable output
 
@@ -348,6 +366,7 @@ it merely failed to understand.
 | `gdck-lint` | Done. 36 rules, 12 of them fixable. See [docs/RULES.md](docs/RULES.md) |
 | Every subcommand | Works |
 | Git hooks | Done. `prek` and `pre-commit`. See [docs/HOOKS.md](docs/HOOKS.md) |
+| Language server | Diagnostics, formatting and quick fixes. See [docs/EDITORS.md](docs/EDITORS.md) |
 
 The parser handles every file in `gdtoolkit`'s corpus of valid GDScript — 324
 files across its parser, formatter and `gd2py` test suites — and round-trips all
