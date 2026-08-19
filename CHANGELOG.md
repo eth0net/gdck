@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--output json` on `check`, `lint` and `parse`, reporting one object per line
+  ([#9]). `gdck` printed for people and nothing else, which blocks every editor
+  integration — `null-ls`, ALE, efm and VS Code problem matchers all want
+  structured output, and a regex over prose that is free to change is not a
+  contract worth offering.
+
+  Lint diagnostics, syntax errors and files needing reformatting come through
+  in one shape under their own rule names, because a consumer wants one list
+  rather than three to merge. Positions carry line, column *and* byte offset,
+  since editors disagree about which they want and all three are already known.
+  A fixable rule carries its edits, so a tool can apply them without running
+  `gdck` over the file again.
+
+  One object per line rather than one array: a run is a stream, so output
+  arrives as it is produced and survives being cut off with every completed
+  record still valid. `jq -s .` collects it into an array. Summaries were
+  already on standard error, so standard output carries nothing but records.
+
 ## [0.7.0] - 2026-08-18
 
 Three new rules and a set of fixes, all about `gdck` saying something that was
@@ -572,6 +592,7 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 [#5]: https://github.com/eth0net/gdck/issues/5
 [#6]: https://github.com/eth0net/gdck/issues/6
 [#8]: https://github.com/eth0net/gdck/issues/8
+[#9]: https://github.com/eth0net/gdck/issues/9
 
 [prek]: https://prek.j178.dev
 [pre-commit]: https://pre-commit.com
