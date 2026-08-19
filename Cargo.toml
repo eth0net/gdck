@@ -34,6 +34,12 @@ clap = { version = "4.5", features = ["derive", "wrap_help"] }
 # checked. Pure Rust with no build script, so the musl build stays static.
 ignore = "0.4"
 serde = { version = "1.0", features = ["derive"] }
+# Writing the JSON diagnostic output. Only ever serialised, never parsed, but
+# escaping a string correctly is the one part of JSON with any subtlety and it
+# is not worth getting wrong by hand. The TOML that `gdck config` prints is
+# still written by hand, because that has to carry comments and commented-out
+# defaults, which no serialiser will emit.
+serde_json = "1.0"
 similar = "3.1"
 toml = "1.1"
 yaml_serde = "0.10"

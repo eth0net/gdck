@@ -648,3 +648,111 @@ fn a_bad_invocation_is_refused_rather_than_guessed_at() {
         .assert()
         .code(2);
 }
+
+// -- json output --------------------------------------------------------------
+
+/// Every line of `stdout`, parsed. Panics with the offending line rather than
+/// a serde message about column 1, which says nothing useful on its own.
+fn records(stdout: &[u8]) -> Vec<serde_json::Value> {
+    text(stdout)
+        .lines()
+        .map(|line| {
+            serde_json::from_str(line).unwrap_or_else(|error| {
+                panic!("not JSON: {error}\n{line}");
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn json_output_is_one_valid_record_per_line() {
+    let sandbox = Sandbox::new("json-records");
+    sandbox.write("a.gd", UNCLEAN);
+
+    let output = gdck()
+        .args(["lint", "--no-config", "--output", "json"])
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+
+    let records = records(&output.stdout);
+    assert!(!records.is_empty(), "nothing was reported");
+    for record in &records {
+        // The fields an editor needs, present on every record whatever
+        // produced it.
+        assert!(record["file"].is_string(), "{record}");
+        assert!(record["rule"].is_string(), "{record}");
+        assert_eq!(record["severity"], "warning", "{record}");
+        assert!(record["message"].is_string(), "{record}");
+        assert!(record["range"]["start"]["line"].is_number(), "{record}");
+        assert!(record["range"]["start"]["column"].is_number(), "{record}");
+        assert!(record["range"]["start"]["offset"].is_number(), "{record}");
+    }
+}
+
+#[test]
+fn json_output_keeps_the_summary_off_standard_output() {
+    // The whole point of the format: a consumer reads standard output straight
+    // through without having to skip a line meant for a person.
+    let sandbox = Sandbox::new("json-streams");
+    sandbox.write("a.gd", UNCLEAN);
+
+    for verb in ["check", "lint", "parse"] {
+        let output = gdck()
+            .args([verb, "--no-config", "--output", "json"])
+            .arg(&sandbox.root)
+            .output()
+            .expect("should run");
+        // Parsing every line is the assertion: a summary among them would not
+        // parse.
+        records(&output.stdout);
+        assert!(
+            !output.stderr.is_empty(),
+            "`gdck {verb}` said nothing on standard error"
+        );
+    }
+}
+
+#[test]
+fn a_syntax_error_and_a_reformat_report_in_the_same_shape() {
+    // Three kinds of problem, one stream, one shape — a consumer wants a
+    // single list rather than three that have to be merged.
+    let sandbox = Sandbox::new("json-kinds");
+    sandbox.write("broken.gd", "extends Node\n\nfunc f( ->\n\t)))\n");
+    sandbox.write("messy.gd", UNFORMATTED);
+
+    let output = gdck()
+        .args(["check", "--no-config", "--output", "json"])
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+
+    let rules: Vec<String> = records(&output.stdout)
+        .iter()
+        .map(|record| record["rule"].as_str().unwrap_or_default().to_string())
+        .collect();
+    assert!(rules.contains(&"syntax-error".to_string()), "{rules:?}");
+    assert!(rules.contains(&"format".to_string()), "{rules:?}");
+}
+
+#[test]
+fn a_fixable_rule_carries_the_edits() {
+    // So a consumer can apply the fix without running gdck over the file
+    // again, which is what a code action in an editor needs.
+    let sandbox = Sandbox::new("json-fix");
+    sandbox.write("a.gd", "extends Node\n\nvar a = \'x\'\n");
+
+    let output = gdck()
+        .args(["lint", "--no-config", "--output", "json"])
+        .arg(&sandbox.root)
+        .output()
+        .expect("should run");
+
+    let quote = records(&output.stdout)
+        .into_iter()
+        .find(|record| record["rule"] == "quote-style")
+        .expect("quote-style should have reported");
+    let edit = &quote["fix"]["edits"][0];
+    assert_eq!(edit["text"], "\"x\"");
+    assert!(edit["range"]["start"]["offset"].is_number(), "{edit}");
+}

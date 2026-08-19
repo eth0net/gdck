@@ -170,6 +170,31 @@ file itself when reading from `-`.
 
 Exit codes: `0` clean, `1` problems found, `2` the run could not complete.
 
+### Machine-readable output
+
+`--output json` reports one JSON object per line, for an editor or a script
+rather than a person:
+
+```sh
+gdck check --output json .
+```
+
+```json
+{"file":"a.gd","rule":"quote-style","severity":"warning","message":"write `'x'` as `\"x\"`","range":{"start":{"line":2,"column":9,"offset":21},"end":{"line":2,"column":12,"offset":24}},"fix":{"edits":[{"range":{"start":{"line":2,"column":9,"offset":21},"end":{"line":2,"column":12,"offset":24}},"text":"\"x\""}]}}
+```
+
+Every record carries the same fields whatever produced it — a lint rule, a
+syntax error (`"rule":"syntax-error"`) or a file the formatter would rewrite
+(`"rule":"format"`) — so a consumer reads one list rather than merging three.
+Positions come as line, column *and* byte offset, because editors disagree
+about which they want and all three are already known. A fixable rule carries
+the edits, so a tool can apply them without running `gdck` again.
+
+Summaries stay on standard error, so standard output is nothing but records.
+One object per line rather than one array: a run is a stream, so output arrives
+as it is produced and survives being cut off with every completed record still
+valid. `jq -s .` collects it into an array.
+
 Every rule is listed in [docs/RULES.md](docs/RULES.md), along with how to turn
 one off for a line, a region or the project.
 
