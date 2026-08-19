@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `gdck lsp` runs `gdck` as a language server over stdio: problems as you type,
+  format document, and each fixable rule's own fix as a quick action, with
+  settings found per file exactly as the command line finds them. A subcommand
+  rather than a second binary, so there is one thing to install.
+
+  It is meant to run *alongside* Godot's own language server rather than
+  instead of it — that one knows the project, this one knows the style guide —
+  so there is deliberately no completion, hover or go-to-definition here.
+  `docs/EDITORS.md` has configurations for Neovim, Helix, Zed and VS Code.
+
+  Built on `lsp-server` and `lsp-types`, which are rust-analyzer's: a
+  synchronous loop over stdio with no async runtime behind it.
+
+  Positions are the part that needed care. `gdck` counts bytes and the protocol
+  counts UTF-16 code units unless the client agrees otherwise, and the two
+  disagree for every character outside ASCII. UTF-8 is used when a client
+  offers it and UTF-16 otherwise, both tested — including an emoji, which is
+  four bytes, one `char` and two UTF-16 code units, and so catches a server
+  counting characters rather than code units.
 - `--output json` on `check`, `lint` and `parse`, reporting one object per line
   ([#9]). `gdck` printed for people and nothing else, which blocks every editor
   integration — `null-ls`, ALE, efm and VS Code problem matchers all want
