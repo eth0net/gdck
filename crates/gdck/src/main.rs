@@ -10,6 +10,7 @@
 //! overwrite one that is already there.
 
 mod files;
+mod json;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -101,6 +102,21 @@ struct CommonArgs {
     /// Walk into files a .gitignore covers, which are skipped by default
     #[arg(long)]
     no_gitignore: bool,
+    /// How to report problems. `json` writes one object per line, for an
+    /// editor or a script to read
+    #[arg(long, value_enum, default_value_t = Output::Human)]
+    output: Output,
+}
+
+/// Who the report is for.
+///
+/// Summaries stay on standard error either way, so standard output under
+/// `json` carries nothing but records — a consumer can read it straight
+/// without having to skip a closing line meant for a person.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum Output {
+    Human,
+    Json,
 }
 
 #[derive(Debug, Args)]
@@ -332,6 +348,8 @@ fn run_init(args: &InitArgs) -> Result<ExitCode> {
         // `init` reads settings rather than walking files, so this says
         // nothing about what it does.
         no_gitignore: false,
+        // Nor does it report problems, so this is never consulted.
+        output: Output::Human,
     })?;
 
     // Anything gdtoolkit asked for that has no equivalent here is named before
@@ -552,13 +570,19 @@ fn run_lint(args: &LintArgs, config: &Config) -> Result<ExitCode> {
         }
 
         let tree = gdck_syntax::parse(&text);
-        broken += report_syntax_errors(&source.name, &text, &tree);
+        broken += report_syntax_errors(&source.name, &text, &tree, args.common.output);
         let diagnostics = gdck_lint::lint_file(&tree, &config.lint, name);
         reported += diagnostics.len();
         // When the fixed file owns standard output, what is left to report
         // goes beside it rather than into it.
         let to_stderr = args.fix && source.name == files::STDIN;
-        print_diagnostics(&source.name, &text, &diagnostics, to_stderr);
+        print_diagnostics(
+            &source.name,
+            &text,
+            &diagnostics,
+            to_stderr,
+            args.common.output,
+        );
     }
 
     if failed > 0 {
@@ -606,11 +630,22 @@ fn run_lint(args: &LintArgs, config: &Config) -> Result<ExitCode> {
 /// nothing here and counting the file among the clean ones states the opposite
 /// of what happened, which is worse than saying nothing at all — a broken file
 /// stays green forever.
-fn report_syntax_errors(name: &str, source: &str, tree: &gdck_syntax::SyntaxTree) -> usize {
+fn report_syntax_errors(
+    name: &str,
+    source: &str,
+    tree: &gdck_syntax::SyntaxTree,
+    output: Output,
+) -> usize {
     let index = LineIndex::new(source);
     let mut count = 0;
     for error in tree.errors() {
-        println!("{}:{}", name, error.display_with(&index));
+        match output {
+            Output::Human => println!("{}:{}", name, error.display_with(&index)),
+            Output::Json => println!(
+                "{}",
+                json::syntax_error(name, &index, error.range(), error.message())
+            ),
+        }
         count += 1;
     }
     count
@@ -621,17 +656,23 @@ fn print_diagnostics(
     source: &str,
     diagnostics: &[gdck_lint::Diagnostic],
     to_stderr: bool,
+    output: Output,
 ) {
     if diagnostics.is_empty() {
         return;
     }
     let index = LineIndex::new(source);
     for diagnostic in diagnostics {
-        let at = index.line_col(diagnostic.range.start());
-        let line = format!(
-            "{name}:{at}: {}: {} [{}]",
-            diagnostic.severity, diagnostic.message, diagnostic.rule
-        );
+        let line = match output {
+            Output::Human => {
+                let at = index.line_col(diagnostic.range.start());
+                format!(
+                    "{name}:{at}: {}: {} [{}]",
+                    diagnostic.severity, diagnostic.message, diagnostic.rule
+                )
+            }
+            Output::Json => json::diagnostic(name, &index, diagnostic),
+        };
         if to_stderr {
             eprintln!("{line}");
         } else {
@@ -674,10 +715,16 @@ fn run_check(args: &CheckArgs, config: &Config) -> Result<ExitCode> {
         };
 
         let tree = gdck_syntax::parse(&source.text);
-        broken += report_syntax_errors(&source.name, &source.text, &tree);
+        broken += report_syntax_errors(&source.name, &source.text, &tree, args.common.output);
         let diagnostics = gdck_lint::lint_file(&tree, &config.lint, file_name(path));
         reported += diagnostics.len();
-        print_diagnostics(&source.name, &source.text, &diagnostics, false);
+        print_diagnostics(
+            &source.name,
+            &source.text,
+            &diagnostics,
+            false,
+            args.common.output,
+        );
 
         match gdck_format::format(&tree, &config.format) {
             Ok(formatted) if formatted == source.text => {}
@@ -685,6 +732,12 @@ fn run_check(args: &CheckArgs, config: &Config) -> Result<ExitCode> {
                 unformatted += 1;
                 if args.diff {
                     print_diff(&source.name, &source.text, &formatted);
+                } else if args.common.output == Output::Json {
+                    let index = LineIndex::new(&source.text);
+                    println!(
+                        "{}",
+                        json::unformatted(&source.name, &index, source.text.len() as u32)
+                    );
                 } else {
                     println!("{}: would be reformatted", source.name);
                 }
@@ -801,6 +854,7 @@ fn run_fix(args: &FixArgs, config: &Config) -> Result<ExitCode> {
             &text,
             &diagnostics,
             source.name == files::STDIN,
+            args.common.output,
         );
     }
 
@@ -848,11 +902,8 @@ fn run_parse(args: &ParseArgs, config: &Config) -> Result<ExitCode> {
             print!("{tree}");
         }
 
-        let index = LineIndex::new(&source.text);
-        for error in tree.errors() {
-            println!("{}:{}", source.name, error.display_with(&index));
-            problem_count += 1;
-        }
+        problem_count +=
+            report_syntax_errors(&source.name, &source.text, &tree, args.common.output);
     }
 
     if failed_files > 0 {
