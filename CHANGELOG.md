@@ -86,7 +86,6 @@ reading Godot's own GDScript documentation end to end.
   understood. It is now taken as trivia — kept in the tree, so the round trip
   is still byte for byte — which is what lets `byte-order-mark` report it as
   the style matter it is.
-
 - `unnecessary-parens` reported on the formatter's own output. GDScript has no
   way to break a condition across lines but to parenthesise it, and that is
   what `gdck format` emits for a condition too long to fit — which the linter
