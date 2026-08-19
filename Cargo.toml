@@ -40,6 +40,13 @@ serde = { version = "1.0", features = ["derive"] }
 # still written by hand, because that has to carry comments and commented-out
 # defaults, which no serialiser will emit.
 serde_json = "1.0"
+# The language server. `lsp-server` and `lsp-types` are what rust-analyzer
+# uses: a synchronous JSON-RPC loop over stdio and the protocol's types, with
+# no async runtime behind them. `tower-lsp` is the better-known alternative and
+# would pull in tokio and tower for a program that has no other use for either,
+# and whose musl builds are static.
+lsp-server = "0.10"
+lsp-types = "0.97"
 similar = "3.1"
 toml = "1.1"
 yaml_serde = "0.10"
