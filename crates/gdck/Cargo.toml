@@ -1,7 +1,7 @@
 [package]
 name = "gdck"
-description = "A fast GDScript formatter and linter"
-keywords = ["godot", "gdscript", "formatter", "linter"]
+description = "A fast GDScript formatter, linter and language server"
+keywords = ["godot", "gdscript", "formatter", "linter", "lsp"]
 categories = ["command-line-utilities", "development-tools"]
 readme = "../../README.md"
 version.workspace = true
