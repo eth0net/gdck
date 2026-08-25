@@ -2,167 +2,64 @@
 
 All notable changes to this project are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ## [0.8.0] - 2026-08-25
 
-An editor release: `gdck` speaks LSP, and reports in JSON for everything that
-does not.
+An editor release: `gdck` speaks LSP, and reports in JSON for everything that does not.
 
 ### Added
 
-- `gdck lsp` runs `gdck` as a language server over stdio: problems as you type,
-  format document, and each fixable rule's own fix as a quick action, with
-  settings found per file exactly as the command line finds them. A subcommand
-  rather than a second binary, so there is one thing to install.
+- `gdck lsp` runs `gdck` as a language server over stdio: problems as you type, format document, and each fixable rule's own fix as a quick action, with settings found per file exactly as the command line finds them. A subcommand rather than a second binary, so there is one thing to install.
 
-  It is meant to run *alongside* Godot's own language server rather than
-  instead of it — that one knows the project, this one knows the style guide —
-  so there is deliberately no completion, hover or go-to-definition here.
-  `docs/EDITORS.md` has configurations for Neovim, Helix, Zed and VS Code.
+  It is meant to run *alongside* Godot's own language server rather than instead of it — that one knows the project, this one knows the style guide — so there is deliberately no completion, hover or go-to-definition here. `docs/EDITORS.md` has configurations for Neovim, Helix, Zed and VS Code.
 
-  Built on `lsp-server` and `lsp-types`, which are rust-analyzer's: a
-  synchronous loop over stdio with no async runtime behind it.
+  Built on `lsp-server` and `lsp-types`, which are rust-analyzer's: a synchronous loop over stdio with no async runtime behind it.
 
-  Positions are the part that needed care. `gdck` counts bytes and the protocol
-  counts UTF-16 code units unless the client agrees otherwise, and the two
-  disagree for every character outside ASCII. UTF-8 is used when a client
-  offers it and UTF-16 otherwise, both tested — including an emoji, which is
-  four bytes, one `char` and two UTF-16 code units, and so catches a server
-  counting characters rather than code units.
-- `tools/benchmark.py`, which produces the README's comparison table, so the
-  speed claim is one anyone can check.
-- `--output json` on `check`, `lint` and `parse`, reporting one object per line
-  ([#9]). `gdck` printed for people and nothing else, which blocks every editor
-  integration — `null-ls`, ALE, efm and VS Code problem matchers all want
-  structured output, and a regex over prose that is free to change is not a
-  contract worth offering.
+  Positions are the part that needed care. `gdck` counts bytes and the protocol counts UTF-16 code units unless the client agrees otherwise, and the two disagree for every character outside ASCII. UTF-8 is used when a client offers it and UTF-16 otherwise, both tested — including an emoji, which is four bytes, one `char` and two UTF-16 code units, and so catches a server counting characters rather than code units.
+- `tools/benchmark.py`, which produces the README's comparison table, so the speed claim is one anyone can check.
+- `--output json` on `check`, `lint` and `parse`, reporting one object per line ([#9](https://github.com/eth0net/gdck/issues/9)). `gdck` printed for people and nothing else, which blocks every editor integration — `null-ls`, ALE, efm and VS Code problem matchers all want structured output, and a regex over prose that is free to change is not a contract worth offering.
 
-  Lint diagnostics, syntax errors and files needing reformatting come through
-  in one shape under their own rule names, because a consumer wants one list
-  rather than three to merge. Positions carry line, column *and* byte offset,
-  since editors disagree about which they want and all three are already known.
-  A fixable rule carries its edits, so a tool can apply them without running
-  `gdck` over the file again.
+  Lint diagnostics, syntax errors and files needing reformatting come through in one shape under their own rule names, because a consumer wants one list rather than three to merge. Positions carry line, column *and* byte offset, since editors disagree about which they want and all three are already known. A fixable rule carries its edits, so a tool can apply them without running `gdck` over the file again.
 
-  One object per line rather than one array: a run is a stream, so output
-  arrives as it is produced and survives being cut off with every completed
-  record still valid. `jq -s .` collects it into an array. Summaries were
-  already on standard error, so standard output carries nothing but records.
+  One object per line rather than one array: a run is a stream, so output arrives as it is produced and survives being cut off with every completed record still valid. `jq -s .` collects it into an array. Summaries were already on standard error, so standard output carries nothing but records.
 
 ### Documentation
 
-- The README's benchmark numbers were wrong in both directions and are now
-  measured. Parsing was given as 4ms against `gdtoolkit`'s 70ms; on the same
-  corpus it is 10ms against 433ms — the `gdck` figure optimistic, the
-  `gdtoolkit` one off by six times, which 70ms should have given away, being
-  less than a Python interpreter takes to start. Formatting was pessimistic
-  the other way, 56ms then and 32ms now, and there was no lint row at all.
-- `docs/README.md` indexes the documentation, which had grown to five files
-  reachable only through a directory listing.
+- The README's benchmark numbers were wrong in both directions and are now measured. Parsing was given as 4ms against `gdtoolkit`'s 70ms; on the same corpus it is 10ms against 433ms — the `gdck` figure optimistic, the `gdtoolkit` one off by six times, which 70ms should have given away, being less than a Python interpreter takes to start. Formatting was pessimistic the other way, 56ms then and 32ms now, and there was no lint row at all.
+- `docs/README.md` indexes the documentation, which had grown to five files reachable only through a directory listing.
 
 ## [0.7.0] - 2026-08-18
 
-Three new rules and a set of fixes, all about `gdck` saying something that was
-not so. Some came from the first project to run it in earnest; the rest from
-reading Godot's own GDScript documentation end to end.
+Three new rules and a set of fixes, all about `gdck` saying something that was not so. Some came from the first project to run it in earnest; the rest from reading Godot's own GDScript documentation end to end.
 
 ### Added
 
-- `doc-tag` reports a `##` tag Godot would ignore ([#3]). The documentation is
-  explicit that a tag "must be at the beginning of a line ... and must have the
-  format `@`, followed by the keyword", and warns that `@tutorial  :` "won't be
-  treated as a valid tag and will be ignored". Ignored in silence: the tutorial
-  link never reaches the help window and nothing says why. The space is
-  fixable; a misspelled keyword is reported and left alone, since which tag was
-  meant is the author's to say. Only a line already reaching for a known tag is
-  reported, so prose about `@export` is not guessed at.
-- `byte-order-mark` reports a leading BOM, which the guide's encoding rules
-  forbid outright ([#4]). Fixable, and it sits with `line-ending` and
-  `final-newline`, which come from the same four bullets.
-- `loop-variable-assignment` reports a write to a `for` variable whose value is
-  then never read ([#6]). "The loop variable is local to the for-loop and
-  assigning to it will not change the value on the array", so
-  `for s in a: s = "x"` writes nothing anywhere while looking like it writes to
-  the collection. Using the loop variable as an ordinary local — assigning and
-  then reading it — is not reported: that is reasonable and common, and a rule
-  that fired on it would be switched off within a day, taking the real findings
-  with it.
+- `doc-tag` reports a `##` tag Godot would ignore ([#3](https://github.com/eth0net/gdck/issues/3)). The documentation is explicit that a tag "must be at the beginning of a line ... and must have the format `@`, followed by the keyword", and warns that `@tutorial  :` "won't be treated as a valid tag and will be ignored". Ignored in silence: the tutorial link never reaches the help window and nothing says why. The space is fixable; a misspelled keyword is reported and left alone, since which tag was meant is the author's to say. Only a line already reaching for a known tag is reported, so prose about `@export` is not guessed at.
+- `byte-order-mark` reports a leading BOM, which the guide's encoding rules forbid outright ([#4](https://github.com/eth0net/gdck/issues/4)). Fixable, and it sits with `line-ending` and `final-newline`, which come from the same four bullets.
+- `loop-variable-assignment` reports a write to a `for` variable whose value is then never read ([#6](https://github.com/eth0net/gdck/issues/6)). "The loop variable is local to the for-loop and assigning to it will not change the value on the array", so `for s in a: s = "x"` writes nothing anywhere while looking like it writes to the collection. Using the loop variable as an ordinary local — assigning and then reading it — is not reported: that is reasonable and common, and a rule that fired on it would be switched off within a day, taking the real findings with it.
 
 ### Fixed
 
-- `check` and `lint` reported a file with syntax errors as clean, and exited
-  zero ([#8]). `parse` reported it and `format` refused to touch it, but the
-  two commands a project actually runs said nothing — a comment in `check`
-  claimed the linter had already reported it, and the linter had not. So
-  `gdck check .`, which the README recommends for CI, went green over files the
-  engine would reject, and a file broken by a bad merge stayed "clean"
-  indefinitely. Both now report the errors and exit non-zero, and neither
-  counts an unparseable file among the clean ones. Expect this to surface
-  breakage that was always there: 73 syntax errors on one addon, 48 across
-  `gdtoolkit`'s own corpus.
-- The formatter no longer wraps a value to make room for a trailing comment
-  ([#2]). A line over the limit *only* because of its comment had its code
-  parenthesised onto its own line to fit — restructuring code around prose the
-  formatter cannot edit, and not addressing what was actually too long. The
-  line is left as written and `line-too-long` names the real cause. Code that
-  overflows on its own still wraps, and a comment inside brackets still forces
-  them open.
-- `prek` treated the sample configurations in `hooks/examples/` as a nested
-  project of this repository. Its workspace discovery found them, then tried to
-  install `gdck`'s own hooks at whatever revision the samples pin — which fails
-  outright in the window before that tag is pushed, so the repository's own
-  commit hooks stopped working while cutting a release. A `.prekignore` keeps
-  discovery out of that directory; `tools/test-hooks.sh` is what exercises
-  those files.
-- A byte-order mark stopped a file parsing at all. It was lexed into the first
-  identifier, so `extends` was never recognised and nothing in the file was
-  understood. It is now taken as trivia — kept in the tree, so the round trip
-  is still byte for byte — which is what lets `byte-order-mark` report it as
-  the style matter it is.
-- `unnecessary-parens` reported on the formatter's own output. GDScript has no
-  way to break a condition across lines but to parenthesise it, and that is
-  what `gdck format` emits for a condition too long to fit — which the linter
-  then flagged as removable. The fix could not be applied either: the safety
-  checks caught that removing them stops the file parsing and refused, so the
-  warning could never be cleared. The only way out was switching the rule off
-  for the whole project, which is what the project did, losing the rule
-  everywhere it did work. It now says nothing about a condition spanning more
-  than one line, and still reports the single-line case it can fix.
-- The `declaration-order` example in `docs/CONFIG.md` put `staticvars` last.
-  The guide puts static variables eighth, directly after constants, and so do
-  `gdck` and `gdtoolkit`. Nothing behaved the way the document described, but a
-  project reading it would conclude `gdck` disagreed with the guide and write a
-  fourteen-name block to correct a difference that was not there.
+- `check` and `lint` reported a file with syntax errors as clean, and exited zero ([#8](https://github.com/eth0net/gdck/issues/8)). `parse` reported it and `format` refused to touch it, but the two commands a project actually runs said nothing — a comment in `check` claimed the linter had already reported it, and the linter had not. So `gdck check .`, which the README recommends for CI, went green over files the engine would reject, and a file broken by a bad merge stayed "clean" indefinitely. Both now report the errors and exit non-zero, and neither counts an unparseable file among the clean ones. Expect this to surface breakage that was always there: 73 syntax errors on one addon, 48 across `gdtoolkit`'s own corpus.
+- The formatter no longer wraps a value to make room for a trailing comment ([#2](https://github.com/eth0net/gdck/issues/2)). A line over the limit *only* because of its comment had its code parenthesised onto its own line to fit — restructuring code around prose the formatter cannot edit, and not addressing what was actually too long. The line is left as written and `line-too-long` names the real cause. Code that overflows on its own still wraps, and a comment inside brackets still forces them open.
+- `prek` treated the sample configurations in `hooks/examples/` as a nested project of this repository. Its workspace discovery found them, then tried to install `gdck`'s own hooks at whatever revision the samples pin — which fails outright in the window before that tag is pushed, so the repository's own commit hooks stopped working while cutting a release. A `.prekignore` keeps discovery out of that directory; `tools/test-hooks.sh` is what exercises those files.
+- A byte-order mark stopped a file parsing at all. It was lexed into the first identifier, so `extends` was never recognised and nothing in the file was understood. It is now taken as trivia — kept in the tree, so the round trip is still byte for byte — which is what lets `byte-order-mark` report it as the style matter it is.
+- `unnecessary-parens` reported on the formatter's own output. GDScript has no way to break a condition across lines but to parenthesise it, and that is what `gdck format` emits for a condition too long to fit — which the linter then flagged as removable. The fix could not be applied either: the safety checks caught that removing them stops the file parsing and refused, so the warning could never be cleared. The only way out was switching the rule off for the whole project, which is what the project did, losing the rule everywhere it did work. It now says nothing about a condition spanning more than one line, and still reports the single-line case it can fix.
+- The `declaration-order` example in `docs/CONFIG.md` put `staticvars` last. The guide puts static variables eighth, directly after constants, and so do `gdck` and `gdtoolkit`. Nothing behaved the way the document described, but a project reading it would conclude `gdck` disagreed with the guide and write a fourteen-name block to correct a difference that was not there.
 
-  The same wrong order was in the `DeclarationGroup` enum's own declaration,
-  which is where the example came from. Nothing reads it — there is no `Ord`
-  and no cast to an integer — so the variants are now in the guide's order, and
-  `DeclarationGroup::GUIDE_ORDER` is the one place that states what the default
-  is.
+  The same wrong order was in the `DeclarationGroup` enum's own declaration, which is where the example came from. Nothing reads it — there is no `Ord` and no cast to an integer — so the variants are now in the guide's order, and `DeclarationGroup::GUIDE_ORDER` is the one place that states what the default is.
 
 ### Changed
 
-- `gdck config` and `gdck init` write `declaration-order` out. Every other
-  setting already printed its default commented; this one printed nothing at
-  all when a project had not set it, so the order a run was actually holding
-  code to was the single thing neither command would tell you — leaving a
-  document as the only answer, at the point that document was wrong. A project
-  that writes the guide's order explicitly now sees `gdck init` comment it back
-  out, which is the file saying the block changes nothing.
-- Settings written across several lines are commented line by line. Only the
-  first line used to get a `#`, which would have left the rest as live TOML
-  that no longer parsed.
+- `gdck config` and `gdck init` write `declaration-order` out. Every other setting already printed its default commented; this one printed nothing at all when a project had not set it, so the order a run was actually holding code to was the single thing neither command would tell you — leaving a document as the only answer, at the point that document was wrong. A project that writes the guide's order explicitly now sees `gdck init` comment it back out, which is the file saying the block changes nothing.
+- Settings written across several lines are commented line by line. Only the first line used to get a `#`, which would have left the rest as live TOML that no longer parsed.
 
 ### Documentation
 
-- `docs/RULES.md` records the guide's ask for past-tense signal names, and why
-  there is no rule for it ([#5]): telling tense from an identifier means
-  guessing at English morphology, and `damage_taken`, `hit` and `cast` are
-  common enough that it would misfire on ordinary names.
+- `docs/RULES.md` records the guide's ask for past-tense signal names, and why there is no rule for it ([#5](https://github.com/eth0net/gdck/issues/5)): telling tense from an identifier means guessing at English morphology, and `damage_taken`, `hit` and `cast` are common enough that it would misfire on ordinary names.
 
 ## [0.6.0] - 2026-08-17
 
@@ -170,55 +67,21 @@ Git hooks, for `prek` and `pre-commit`.
 
 ### Added
 
-- Hook definitions in `.pre-commit-hooks.yaml`, read by both [`prek`][prek] and
-  [`pre-commit`][pre-commit]: `gdck-format` and `gdck-lint` to drop in where
-  `gdformat` and `gdlint` were, and `gdck-fix` and `gdck-check` to do both jobs
-  in one pass over each file. `prek`'s native `prek.toml` and
-  `.pre-commit-config.yaml` are both documented.
-- Ready-to-copy configurations in `hooks/examples/`, one per tool, with the
-  alternatives commented rather than left to the reader. Both are what the
-  hook test suite runs, so a sample cannot drift from the hooks it names.
-- `docs/HOOKS.md`, covering the four hooks, migrating an existing `gdtoolkit`
-  config, and the caching the hook does.
+- Hook definitions in `.pre-commit-hooks.yaml`, read by both [`prek`][prek] and [`pre-commit`][pre-commit]: `gdck-format` and `gdck-lint` to drop in where `gdformat` and `gdlint` were, and `gdck-fix` and `gdck-check` to do both jobs in one pass over each file. `prek`'s native `prek.toml` and `.pre-commit-config.yaml` are both documented.
+- Ready-to-copy configurations in `hooks/examples/`, one per tool, with the alternatives commented rather than left to the reader. Both are what the hook test suite runs, so a sample cannot drift from the hooks it names.
+- `docs/HOOKS.md`, covering the four hooks, migrating an existing `gdtoolkit` config, and the caching the hook does.
 
-  The hook fetches the prebuilt binary for whichever revision was pinned,
-  reading the version from the checked-out `Cargo.toml` so there is no version
-  string to keep in step by hand. Both runners can bootstrap a Rust toolchain
-  and build a hook from source, and neither is asked to: that would mean a
-  ~300MB download and a full compile, on every machine and every cold CI
-  runner, for a binary already published for seven targets. The tool being
-  replaced installs with `pip`, so a first run measured in minutes is not the
-  bar to clear. A warm run of both hooks takes 0.075s.
+  The hook fetches the prebuilt binary for whichever revision was pinned, reading the version from the checked-out `Cargo.toml` so there is no version string to keep in step by hand. Both runners can bootstrap a Rust toolchain and build a hook from source, and neither is asked to: that would mean a ~300MB download and a full compile, on every machine and every cold CI runner, for a binary already published for seven targets. The tool being replaced installs with `pip`, so a first run measured in minutes is not the bar to clear. A warm run of both hooks takes 0.075s.
 
-  Worth knowing when migrating: `files.exclude` does not apply under a hook.
-  It decides what a directory walk finds, and a hook run walks nothing — the
-  file list arrives already chosen. Since `addons` is excluded by default, a
-  hook reports on addon code that `gdck check .` stays quiet about. This is
-  what `gdformat` and `gdlint` do as hooks too, so a migrated config behaves
-  as it did.
+  Worth knowing when migrating: `files.exclude` does not apply under a hook. It decides what a directory walk finds, and a hook run walks nothing — the file list arrives already chosen. Since `addons` is excluded by default, a hook reports on addon code that `gdck check .` stays quiet about. This is what `gdformat` and `gdlint` do as hooks too, so a migrated config behaves as it did.
 
 ## [0.5.2] - 2026-08-17
 
-One fix: a class docstring followed by a blank line ended up documenting
-nothing.
+One fix: a class docstring followed by a blank line ended up documenting nothing.
 
 ### Fixed
 
-- A class docstring separated from the declaration below it by a blank line was
-  moved away from both ([#1]). Godot's rule is that a `##` block "must
-  immediately precede a script member, or for script descriptions, be placed at
-  the top of the script", and the blank line an author writes under it is what
-  says which of those it is. The formatter carried it along as the next
-  declaration's leading comment, so a description written tight under `extends`
-  came out two blank lines below it and one blank line above the function —
-  immediately preceding nothing, and no longer at the top either.
-  The safety checks could not catch this: no comment is lost, the tree is
-  unchanged, and the output is stable. Only what the comment documents changes.
-  A comment that does touch its declaration still belongs to it and is unmoved,
-  and the guide's spacing now goes after a detached comment rather than before
-  it. Test-suite files, which document the suite and then leave a blank line
-  before the first `test_` function, were the common shape hit: on one project
-  the number of files the formatter wanted to rewrite fell from 238 to 228.
+- A class docstring separated from the declaration below it by a blank line was moved away from both ([#1](https://github.com/eth0net/gdck/issues/1)). Godot's rule is that a `##` block "must immediately precede a script member, or for script descriptions, be placed at the top of the script", and the blank line an author writes under it is what says which of those it is. The formatter carried it along as the next declaration's leading comment, so a description written tight under `extends` came out two blank lines below it and one blank line above the function — immediately preceding nothing, and no longer at the top either. The safety checks could not catch this: no comment is lost, the tree is unchanged, and the output is stable. Only what the comment documents changes. A comment that does touch its declaration still belongs to it and is unmoved, and the guide's spacing now goes after a detached comment rather than before it. Test-suite files, which document the suite and then leave a blank line before the first `test_` function, were the common shape hit: on one project the number of files the formatter wanted to rewrite fell from 238 to 228.
 
 ## [0.5.1] - 2026-08-16
 
@@ -226,363 +89,116 @@ One fix: `--fix-order` was refusing whole files over a trailing comment.
 
 ### Fixed
 
-- `--fix-order` refused whole files over a trailing comment. The parser hands a
-  comment to the token that follows it, so `const A = 1 # why` puts that comment
-  in the *next* declaration's leading trivia; the reorder then took it as that
-  declaration's own start, which dragged its text back onto the previous line
-  and looked like two declarations sharing one. The file was left alone with
-  ``` `X` shares a line with the declaration above it ```, naming a line that
-  was not shared.
-  A comment is now only treated as a declaration's own when nothing but
-  whitespace precedes it on its line. A genuinely shared line — `var a = 1;
-  signal b` — is still refused.
-  On the project this was found on, `--fix-order` went from resolving 66 of 171
-  `code-order` reports to resolving all 171, with no file left blocked. On a
-  second project it went from 767 reports to 92, and every remaining refusal is
-  a real one: 11 files that do not parse, 4 where a variable is initialised from
-  one the move would hoist below it, and 2 genuine shared lines.
+- `--fix-order` refused whole files over a trailing comment. The parser hands a comment to the token that follows it, so `const A = 1 # why` puts that comment in the *next* declaration's leading trivia; the reorder then took it as that declaration's own start, which dragged its text back onto the previous line and looked like two declarations sharing one. The file was left alone with ``` `X` shares a line with the declaration above it ```, naming a line that was not shared. A comment is now only treated as a declaration's own when nothing but whitespace precedes it on its line. A genuinely shared line — `var a = 1; signal b` — is still refused. On the project this was found on, `--fix-order` went from resolving 66 of 171 `code-order` reports to resolving all 171, with no file left blocked. On a second project it went from 767 reports to 92, and every remaining refusal is a real one: 11 files that do not parse, 4 where a variable is initialised from one the move would hoist below it, and 2 genuine shared lines.
 
 ## [0.5.0] - 2026-08-16
 
-`gdck` now skips what your `.gitignore` skips, which is a change to what a run
-looks at rather than a new option. The minimum Rust version moves to 1.88;
-nothing about the released binaries changes.
+`gdck` now skips what your `.gitignore` skips, which is a change to what a run looks at rather than a new option. The minimum Rust version moves to 1.88; nothing about the released binaries changes.
 
 ### Added
 
-- Files a `.gitignore` covers are skipped, which is new behaviour rather than a
-  new option: a `.gd` file git has been told to ignore is almost always
-  generated or vendored, and reporting on it is noise about code nobody edits.
-  `files.respect-gitignore = false` or `--no-gitignore` turns it off.
-  What is skipped is what `git status` leaves out — the nearest `.gitignore` and
-  every one above it, nested files, `!` negations, `.git/info/exclude` and the
-  global file — because this uses the same crate `ripgrep` does rather than a
-  hand-rolled matcher whose disagreements with git would be silent. A directory
-  with a `.gitignore` but no `.git` is still read, since an export or a vendored
-  copy meant what its file says.
-  It is a second filter beside `files.exclude`, not a replacement, and neither
-  covers the other: `addons` is committed so no `.gitignore` names it, and
-  `build/` is ignored without being a name anybody listed. A path given directly
-  on the command line is still processed, as with the exclusions.
-  On the two projects trialled, neither has a gitignored `.gd` file, so nothing
-  they report changed.
+- Files a `.gitignore` covers are skipped, which is new behaviour rather than a new option: a `.gd` file git has been told to ignore is almost always generated or vendored, and reporting on it is noise about code nobody edits. `files.respect-gitignore = false` or `--no-gitignore` turns it off. What is skipped is what `git status` leaves out — the nearest `.gitignore` and every one above it, nested files, `!` negations, `.git/info/exclude` and the global file — because this uses the same crate `ripgrep` does rather than a hand-rolled matcher whose disagreements with git would be silent. A directory with a `.gitignore` but no `.git` is still read, since an export or a vendored copy meant what its file says. It is a second filter beside `files.exclude`, not a replacement, and neither covers the other: `addons` is committed so no `.gitignore` names it, and `build/` is ignored without being a name anybody listed. A path given directly on the command line is still processed, as with the exclusions. On the two projects trialled, neither has a gitignored `.gd` file, so nothing they report changed.
 
 ### Changed
 
-- The minimum supported Rust version is 1.88, up from 1.85. Nothing about the
-  released binaries changes — they are prebuilt, and the installers and Homebrew
-  need no toolchain at all — so this only affects `cargo install gdck` on a
-  toolchain older than June 2025. It was 1.85 because that is edition 2024's
-  floor rather than because anything wanted it, and holding it there meant
-  pinning dependencies to versions that predate stable let-chains.
+- The minimum supported Rust version is 1.88, up from 1.85. Nothing about the released binaries changes — they are prebuilt, and the installers and Homebrew need no toolchain at all — so this only affects `cargo install gdck` on a toolchain older than June 2025. It was 1.85 because that is edition 2024's floor rather than because anything wanted it, and holding it there meant pinning dependencies to versions that predate stable let-chains.
 
 ### Documentation
 
-- `docs/RULES.md` says why a project arriving from a clean `gdlint` run sees new
-  `code-order` reports. `gdlint` has a token for static *variables* and none for
-  static *methods* — in `gdtoolkit`'s `linter/class_checks.py`, `static_func_def`
-  returns `"others"`, the same bucket as an ordinary function — so
-  `class-definitions-order` cannot place `_static_init()` or "remaining static
-  methods", which the guide puts before the virtual callbacks. Inner classes,
-  which the guide puts last, have no token either. Neither report is a
-  regression; both are orderings nothing had been checking.
-- `docs/DESIGN.md` records why there is no `gdck config set`, and what would have
-  to be true to add one.
-- `docs/CONFIG.md` now says why a `gdlintrc`'s `max-line-length` moves only the
-  linter while a `gdformatrc`'s `line_length` moves both. This was raised as a
-  bug — the formatter "should" widen to match — and checking it against
-  `gdformat` showed the opposite: `gdformat` reads `line_length` from a
-  `gdformatrc` and never looks at a `gdlintrc`, so a project with only a
-  `gdlintrc` has always formatted at 100. Inferring the width would reflow files
-  `gdformat` had left alone, which is the one thing compatibility is for. A
-  differential test against `gdformat` confirms the two agree.
+- `docs/RULES.md` says why a project arriving from a clean `gdlint` run sees new `code-order` reports. `gdlint` has a token for static *variables* and none for static *methods* — in `gdtoolkit`'s `linter/class_checks.py`, `static_func_def` returns `"others"`, the same bucket as an ordinary function — so `class-definitions-order` cannot place `_static_init()` or "remaining static methods", which the guide puts before the virtual callbacks. Inner classes, which the guide puts last, have no token either. Neither report is a regression; both are orderings nothing had been checking.
+- `docs/DESIGN.md` records why there is no `gdck config set`, and what would have to be true to add one.
+- `docs/CONFIG.md` now says why a `gdlintrc`'s `max-line-length` moves only the linter while a `gdformatrc`'s `line_length` moves both. This was raised as a bug — the formatter "should" widen to match — and checking it against `gdformat` showed the opposite: `gdformat` reads `line_length` from a `gdformatrc` and never looks at a `gdlintrc`, so a project with only a `gdlintrc` has always formatted at 100. Inferring the width would reflow files `gdformat` had left alone, which is the one thing compatibility is for. A differential test against `gdformat` confirms the two agree.
 
 ## [0.4.0] - 2026-08-16
 
-Configuration, mostly. Adopting `gdck` in a project that already used
-`gdtoolkit` meant restating every setting it had, and the documented way to do
-that quietly wrote the defaults over them instead. `gdck init` does it
-properly, and a `gdck.toml` that keeps a `gdlintrc` out now says so.
+Configuration, mostly. Adopting `gdck` in a project that already used `gdtoolkit` meant restating every setting it had, and the documented way to do that quietly wrote the defaults over them instead. `gdck init` does it properly, and a `gdck.toml` that keeps a `gdlintrc` out now says so.
 
 ### Added
 
-- `gdck init` writes a `gdck.toml`. In a project with a `gdformatrc` or
-  `gdlintrc` it is also the migration path: the settings are read by the same
-  code that reads them for a real run, so what lands in the file is exactly what
-  `gdck` was already doing — `gdck config` prints the same thing before and
-  after — and anything `gdtoolkit` had that has no equivalent here is named
-  before the file is written rather than dropped in silence.
-  Settings still at the style guide's default are written commented out. The
-  live lines are then the project's own decisions, and a later change to a
-  default still reaches it rather than being pinned by accident.
-  It refuses to overwrite an existing `gdck.toml` without `--force`.
-  `--no-config` starts from the defaults instead of what is there, and
-  `--config <path>` takes a named file as the source.
+- `gdck init` writes a `gdck.toml`. In a project with a `gdformatrc` or `gdlintrc` it is also the migration path: the settings are read by the same code that reads them for a real run, so what lands in the file is exactly what `gdck` was already doing — `gdck config` prints the same thing before and after — and anything `gdtoolkit` had that has no equivalent here is named before the file is written rather than dropped in silence. Settings still at the style guide's default are written commented out. The live lines are then the project's own decisions, and a later change to a default still reaches it rather than being pinned by accident. It refuses to overwrite an existing `gdck.toml` without `--force`. `--no-config` starts from the defaults instead of what is there, and `--config <path>` takes a named file as the source.
 
-- `format.class-declaration` chooses whether a file-level `class_name` keeps
-  its `extends` on the same line. `"multi-line"` is the default and the style
-  guide's answer — its prose introduces the two in sequence, its examples write
-  them apart, and it singles inner classes out for the opposite treatment ("For
-  inner classes, use single-line declarations"), which only means something if
-  file-level declarations are not single-line.
-  `"single-line"` exists because `gdformat` enforces neither shape: its grammar
-  has a separate rule for the joined form and it preserves whichever it was
-  given. A project migrating can therefore be uniformly on
-  `class_name Player extends Node` without ever having chosen it, and would
-  meet that as a diff across most of its files. Either setting is canonical —
-  both shapes converge on the one configured, so this decides a layout rather
-  than preserving what was written.
+- `format.class-declaration` chooses whether a file-level `class_name` keeps its `extends` on the same line. `"multi-line"` is the default and the style guide's answer — its prose introduces the two in sequence, its examples write them apart, and it singles inner classes out for the opposite treatment ("For inner classes, use single-line declarations"), which only means something if file-level declarations are not single-line. `"single-line"` exists because `gdformat` enforces neither shape: its grammar has a separate rule for the joined form and it preserves whichever it was given. A project migrating can therefore be uniformly on `class_name Player extends Node` without ever having chosen it, and would meet that as a diff across most of its files. Either setting is canonical — both shapes converge on the one configured, so this decides a layout rather than preserving what was written.
 
-- A `gdck.toml` that keeps a `gdformatrc` or `gdlintrc` from applying now says
-  so, once, naming the settings the two disagree about. The precedence itself is
-  unchanged and deliberate — a project that has written a `gdck.toml` has said
-  what it wants — but doing it in silence was not defensible when `gdck` already
-  speaks up about a single unknown key in a `gdlintrc`.
-  Only a real disagreement is reported, so a project whose two files agree —
-  which is what `gdck init` leaves behind — hears nothing, and the warning
-  cannot become furniture people learn to scroll past. A shadowed file that
-  cannot be parsed is passed over without comment, since it is not governing the
-  run.
+- A `gdck.toml` that keeps a `gdformatrc` or `gdlintrc` from applying now says so, once, naming the settings the two disagree about. The precedence itself is unchanged and deliberate — a project that has written a `gdck.toml` has said what it wants — but doing it in silence was not defensible when `gdck` already speaks up about a single unknown key in a `gdlintrc`. Only a real disagreement is reported, so a project whose two files agree — which is what `gdck init` leaves behind — hears nothing, and the warning cannot become furniture people learn to scroll past. A shadowed file that cannot be parsed is passed over without comment, since it is not governing the run.
 
 ### Changed
 
-- `Config`, `FormatConfig` and `LintConfig` are `#[non_exhaustive]`. Both config
-  structs gained a field in consecutive releases, and each of those was a
-  breaking change for anyone constructing one from the published crates. Adding
-  a setting no longer is. Code that built one with a struct literal should start
-  from `Default::default()` and assign the fields it cares about.
+- `Config`, `FormatConfig` and `LintConfig` are `#[non_exhaustive]`. Both config structs gained a field in consecutive releases, and each of those was a breaking change for anyone constructing one from the published crates. Adding a setting no longer is. Code that built one with a struct literal should start from `Default::default()` and assign the fields it cares about.
 
 ### Fixed
 
-- A comment written between `class_name` and `extends` was dropped by the
-  formatter. The safety checks caught it, so nothing was ever written to disk
-  and the file was reported as rejected rather than silently mangled — but the
-  file could not be formatted at all until the comment was moved. It is now
-  kept, on its own line, and its presence holds the two lines apart even under
-  `class-declaration = "single-line"`, where a joined line would leave it
-  nowhere to go.
+- A comment written between `class_name` and `extends` was dropped by the formatter. The safety checks caught it, so nothing was ever written to disk and the file was reported as rejected rather than silently mangled — but the file could not be formatted at all until the comment was moved. It is now kept, on its own line, and its presence holds the two lines apart even under `class-declaration = "single-line"`, where a joined line would leave it nowhere to go.
 
 ### Documentation
 
-- `docs/CONFIG.md` recommended `gdck config > gdck.toml` as the way to start a
-  configuration file. It does the opposite of what it looks like: the shell
-  creates the file before `gdck` starts, `gdck` finds an empty `gdck.toml`,
-  which beats a `gdlintrc` outright, and writes the defaults into it. A project
-  following that advice to migrate lost every setting it had and was left with
-  a file that looked deliberate. The advice is retracted in place, and
-  `gdck init` does the job properly.
-- `docs/CONFIG.md` listed `class-definitions-order` among the `gdlintrc`
-  settings that are reported and not applied. It has been read into
-  `lint.declaration-order` since 0.3.0; the page now says so.
+- `docs/CONFIG.md` recommended `gdck config > gdck.toml` as the way to start a configuration file. It does the opposite of what it looks like: the shell creates the file before `gdck` starts, `gdck` finds an empty `gdck.toml`, which beats a `gdlintrc` outright, and writes the defaults into it. A project following that advice to migrate lost every setting it had and was left with a file that looked deliberate. The advice is retracted in place, and `gdck init` does the job properly.
+- `docs/CONFIG.md` listed `class-definitions-order` among the `gdlintrc` settings that are reported and not applied. It has been read into `lint.declaration-order` since 0.3.0; the page now says so.
 
 ## [0.3.0] - 2026-08-16
 
-Two trials against real projects drove most of this: a parser bug that
-rejected code Godot compiles, and two rules that told a project its own
-settled conventions were mistakes.
+Two trials against real projects drove most of this: a parser bug that rejected code Godot compiles, and two rules that told a project its own settled conventions were mistakes.
 
 ### Fixed
 
-- `gdck-syntax`: `when` and `match` were refused as names, so real code Godot
-  compiles was reported as a syntax error — `var when: int`, a parameter called
-  `when`, and `text.match("*.gd")` among them. Both are keywords Godot still
-  accepts as identifiers: `match` because `String.match()` was on the engine's
-  API first, and `when` because it arrived as a `match` guard long after code
-  was using it as a name. The list is `Token::is_identifier` in
-  `gdscript_tokenizer.cpp`, whose comment on `when` reads "New keyword, avoid
-  breaking existing code".
-  A file this hit could not be formatted at all, and the mis-parse produced
-  phantom lint findings around it. Both are gone: on the project that reported
-  it, all 243 files now parse and the 7 spurious `expression-not-assigned`
-  findings disappeared. A `match` guard still reads `when` as the keyword, so
-  `1 when when > 0` parses as a guard testing a variable of that name.
+- `gdck-syntax`: `when` and `match` were refused as names, so real code Godot compiles was reported as a syntax error — `var when: int`, a parameter called `when`, and `text.match("*.gd")` among them. Both are keywords Godot still accepts as identifiers: `match` because `String.match()` was on the engine's API first, and `when` because it arrived as a `match` guard long after code was using it as a name. The list is `Token::is_identifier` in `gdscript_tokenizer.cpp`, whose comment on `when` reads "New keyword, avoid breaking existing code". A file this hit could not be formatted at all, and the mis-parse produced phantom lint findings around it. Both are gone: on the project that reported it, all 243 files now parse and the 7 spurious `expression-not-assigned` findings disappeared. A `match` guard still reads `when` as the keyword, so `1 when when > 0` parses as a guard testing a variable of that name.
 
 ### Added
 
-- `lint.declaration-order` sets the order `code-order` checks, and a
-  `gdlintrc`'s `class-definitions-order` is read into it rather than reported
-  as something `gdck` will not apply. A project that pinned an order keeps it.
-  What no such setting can change is the order *within* a group: `gdtoolkit`
-  has one `others` bucket for every method and inner class, where `gdck`
-  separates `_init()`, `_ready()`, `_process()`, static functions and the rest.
-  Giving `others` a position says where that run goes; inside it the guide's
-  order stands.
-- `lint.file-name` chooses which convention the `file-name` rule holds a file
-  to: `"snake-case"`, as the style guide says and as before, or
-  `"pascal-case"` for a project that names files after the classes in them.
-  It is the only naming rule that takes a setting, because it is the only one
-  whose subject is not an identifier — Godot has no opinion about what a
-  script is called. Naming the convention keeps the rule working, where
-  `disable = ["file-name"]` stops it noticing anything: a file following
-  neither convention is still reported.
+- `lint.declaration-order` sets the order `code-order` checks, and a `gdlintrc`'s `class-definitions-order` is read into it rather than reported as something `gdck` will not apply. A project that pinned an order keeps it. What no such setting can change is the order *within* a group: `gdtoolkit` has one `others` bucket for every method and inner class, where `gdck` separates `_init()`, `_ready()`, `_process()`, static functions and the rest. Giving `others` a position says where that run goes; inside it the guide's order stands.
+- `lint.file-name` chooses which convention the `file-name` rule holds a file to: `"snake-case"`, as the style guide says and as before, or `"pascal-case"` for a project that names files after the classes in them. It is the only naming rule that takes a setting, because it is the only one whose subject is not an identifier — Godot has no opinion about what a script is called. Naming the convention keeps the rule working, where `disable = ["file-name"]` stops it noticing anything: a file following neither convention is still reported.
 
 ## [0.2.0] - 2026-08-15
 
-The first release with a working formatter and linter. `0.1.0` was the parser
-and a command-line skeleton, and was never published anywhere.
+The first release with a working formatter and linter. `0.1.0` was the parser and a command-line skeleton, and was never published anywhere.
 
 ### Added
 
-- Prebuilt binaries for macOS, Linux and Windows on every release, with a
-  one-line installer for each platform and a Homebrew formula in
-  [eth0net/homebrew-tap](https://github.com/eth0net/homebrew-tap). `gdck` is
-  for people writing Godot games, most of whom have no Rust toolchain, so
-  `cargo install` was a filter rather than an invitation. Linux is statically
-  linked against musl and runs on any distribution. Every archive carries a
-  SHA-256 beside it.
-- `gdck-config`: configuration files are read, and `gdck config` prints the
-  settings a run would use.
-  - `gdck.toml` or `.gdck.toml`, found by walking up from the directory the
-    given paths have in common. Every setting is documented in
-    [docs/CONFIG.md](docs/CONFIG.md).
-  - `gdformatrc` and `gdlintrc` are read when there is no `gdck.toml`, so a
-    project already set up for `gdtoolkit` keeps its line length, its
-    thresholds and its disabled rules without writing anything new. What
-    `gdck` cannot honour — a customised naming pattern, a reordered
-    `class-definitions-order` — is reported rather than silently dropped.
+- Prebuilt binaries for macOS, Linux and Windows on every release, with a one-line installer for each platform and a Homebrew formula in [eth0net/homebrew-tap](https://github.com/eth0net/homebrew-tap). `gdck` is for people writing Godot games, most of whom have no Rust toolchain, so `cargo install` was a filter rather than an invitation. Linux is statically linked against musl and runs on any distribution. Every archive carries a SHA-256 beside it.
+- `gdck-config`: configuration files are read, and `gdck config` prints the settings a run would use.
+  - `gdck.toml` or `.gdck.toml`, found by walking up from the directory the given paths have in common. Every setting is documented in [docs/CONFIG.md](docs/CONFIG.md).
+  - `gdformatrc` and `gdlintrc` are read when there is no `gdck.toml`, so a project already set up for `gdtoolkit` keeps its line length, its thresholds and its disabled rules without writing anything new. What `gdck` cannot honour — a customised naming pattern, a reordered `class-definitions-order` — is reported rather than silently dropped.
   - `--config` to name a file and `--no-config` to ignore all of them.
-  - `gdck.toml` is deserialised by `toml` and `serde`, with validation above
-    it for what a type cannot say: ranges, and settings that only mean
-    something alongside another. An unknown key is an error naming the nearest
-    key that exists, including when the mistake was the right key under the
-    wrong table. `gdlintrc` and `gdformatrc` are read by `yaml_serde` into an
-    untyped mapping, so a setting `gdck` has no equivalent for is skipped with
-    a note rather than failing the file — but a file that cannot be parsed at
-    all is an error, since none of its settings would apply.
-  - Setting `format.line-length` moves `lint.max-line-length` with it unless
-    that is set too, so the linter cannot report the lines the formatter just
-    produced.
+  - `gdck.toml` is deserialised by `toml` and `serde`, with validation above it for what a type cannot say: ranges, and settings that only mean something alongside another. An unknown key is an error naming the nearest key that exists, including when the mistake was the right key under the wrong table. `gdlintrc` and `gdformatrc` are read by `yaml_serde` into an untyped mapping, so a setting `gdck` has no equivalent for is skipped with a note rather than failing the file — but a file that cannot be parsed at all is an error, since none of its settings would apply.
+  - Setting `format.line-length` moves `lint.max-line-length` with it unless that is set too, so the linter cannot report the lines the formatter just produced.
 - `gdck-lint`: a working linter, and `gdck lint`, `gdck check` and `gdck fix`.
-  - 33 rules covering the style guide's naming conventions, its formatting
-    rules, and the declaration order it prescribes; the design thresholds
-    inherited from `gdtoolkit`; and five correctness smells. The catalogue is
-    documented in [docs/RULES.md](docs/RULES.md), and a test fails if a rule
-    ships undocumented.
-  - Fixes for 10 of them, applied back to front so earlier offsets stay valid.
-    `quote-style` and `number-format` call into the formatter for their
-    rewrite, so the two cannot disagree about what the right spelling is.
-  - `code-order`, with `gdck fix --fix-order` to apply it. Reordering is
-    all-or-nothing per file, and is refused when an initialiser might read a
-    member the move would put below it. What it does produce is a permutation
-    of the source, so a declaration takes its comments and annotations with it
-    byte for byte.
-  - Suppression with `# gdlint: ignore=`, `disable=` and `enable=`, matching
-    `gdtoolkit`'s syntax and semantics. `gdtoolkit`'s rule names are accepted
-    as aliases wherever a rule is named, so an existing `gdlintrc` and existing
-    suppression comments keep working.
-  - Agreement with `gdlint` checked rule by rule over its own test corpus:
-    identical findings for `unused-argument`, `constant-name`,
-    `trailing-whitespace`, `function-name`, `enum-member-name`,
-    `argument-name`, `enum-name` and `max-arguments`, and every difference
-    elsewhere accounted for.
+  - 33 rules covering the style guide's naming conventions, its formatting rules, and the declaration order it prescribes; the design thresholds inherited from `gdtoolkit`; and five correctness smells. The catalogue is documented in [docs/RULES.md](docs/RULES.md), and a test fails if a rule ships undocumented.
+  - Fixes for 10 of them, applied back to front so earlier offsets stay valid. `quote-style` and `number-format` call into the formatter for their rewrite, so the two cannot disagree about what the right spelling is.
+  - `code-order`, with `gdck fix --fix-order` to apply it. Reordering is all-or-nothing per file, and is refused when an initialiser might read a member the move would put below it. What it does produce is a permutation of the source, so a declaration takes its comments and annotations with it byte for byte.
+  - Suppression with `# gdlint: ignore=`, `disable=` and `enable=`, matching `gdtoolkit`'s syntax and semantics. `gdtoolkit`'s rule names are accepted as aliases wherever a rule is named, so an existing `gdlintrc` and existing suppression comments keep working.
+  - Agreement with `gdlint` checked rule by rule over its own test corpus: identical findings for `unused-argument`, `constant-name`, `trailing-whitespace`, `function-name`, `enum-member-name`, `argument-name`, `enum-name` and `max-arguments`, and every difference elsewhere accounted for.
 - `gdck-format`: a working formatter, and `gdck format`.
-  - A Wadler-style pretty printer over the syntax tree: two indent levels on
-    continuation lines and one inside arrays, dictionaries and enums; trailing
-    commas on collections that break; one statement per line; two blank lines
-    around top-level definitions and one inside a class.
-  - Literal normalisation: quote style chosen to minimise escapes, lowercase
-    hexadecimal, a digit either side of a float's point.
-  - Single-line inner class declarations (`class Child extends Parent:`), with
-    a body-level `extends` hoisted onto the declaration line, and the file-level
-    `class_name` / `extends` pair split across two lines. Both are what the
-    style guide's "Class declaration" section shows.
-  - Redundant parentheses dropped; parentheses added when an expression has to
-    wrap and has no brackets of its own.
-  - Line breaks the author wrote in a bracketed construct are preserved, since
-    the guide presents both the wrapped and unwrapped forms as good.
-  - Safety checks, on by default: the output is re-parsed and checked to still
-    parse, to mean the same thing, to have kept every comment, and to be stable
-    under a second pass. `--fast` turns them off.
-  - Conformance tests against all 56 usable code samples in the GDScript style
-    guide, extracted from the documentation by
-    `tools/extract-style-guide-samples.py`.
+  - A Wadler-style pretty printer over the syntax tree: two indent levels on continuation lines and one inside arrays, dictionaries and enums; trailing commas on collections that break; one statement per line; two blank lines around top-level definitions and one inside a class.
+  - Literal normalisation: quote style chosen to minimise escapes, lowercase hexadecimal, a digit either side of a float's point.
+  - Single-line inner class declarations (`class Child extends Parent:`), with a body-level `extends` hoisted onto the declaration line, and the file-level `class_name` / `extends` pair split across two lines. Both are what the style guide's "Class declaration" section shows.
+  - Redundant parentheses dropped; parentheses added when an expression has to wrap and has no brackets of its own.
+  - Line breaks the author wrote in a bracketed construct are preserved, since the guide presents both the wrapped and unwrapped forms as good.
+  - Safety checks, on by default: the output is re-parsed and checked to still parse, to mean the same thing, to have kept every comment, and to be stable under a second pass. `--fast` turns them off.
+  - Conformance tests against all 56 usable code samples in the GDScript style guide, extracted from the documentation by `tools/extract-style-guide-samples.py`.
 
 ### Fixed
 
-- `gdck`: `gdck format -` wrote the literal string `-` to standard output
-  instead of the formatted file, so `gdck format - < in.gd > out.gd` destroyed
-  the file. Reading from `-` is now a filter with or without `--fix`, which is
-  what the README always said it was: there is no file to write back to, so
-  the formatted text is the output.
-- `gdck`: `gdck parse` wrote its summary to standard output while every
-  other subcommand wrote it to standard error, so `gdck parse --tree` mixed a
-  sentence of prose into the tree.
-- `gdck`: `--diff` printed the whole span between the first and last change
-  as removed and re-added, so two one-line changes at opposite ends of a file
-  printed the file twice. Diffs now come from `similar` and have hunks.
-- `gdck-syntax`: a single-line lambda inside a bracketed construct written
-  across several lines (`connect(\n\tfunc(): return 1\n)`) took the closing
-  bracket's line as the start of its body, swallowing the bracket.
-- `gdck-format`: a function's annotations were pulled up onto its declaration
-  line. The Godot documentation writes `@rpc("any_peer")` above the `func` and
-  `@export_range(0, 10) var lives` beside the `var`, so the two are now
-  distinguished. `@abstract` stays inline either way, as a modifier.
-- `gdck-format`: an argument list ending in a multi-line lambda produced a file
-  Godot rejects with "Unindent doesn't match the previous indentation level".
-  A lambda body is the one place inside brackets where Godot still tracks
-  indentation, and the first line after it has to sit at the enclosing
-  statement's indent — which the closing brackets of a wrapped call do not. A
-  trailing comma ends the lambda on the body's own last line, so no line is
-  left to check; collections already emitted one and argument lists now do too.
-- `gdck-format`: a standalone annotation was moved up beside the declaration
-  under it, producing a line Godot rejects with "Expected newline after a
-  standalone annotation". `@warning_ignore_start`, `@warning_ignore_restore`,
-  `@export_category`, `@export_group` and `@export_subgroup` open or close a
-  region rather than describing what follows them, so there is nothing for them
-  to sit beside and they now keep their own line. The annotations that do
-  describe the declaration below, like `@export_range`, still move up onto it.
-- `gdck-format`: parentheses around a multi-line lambda were closed on a line
-  of their own, so `assert((func() -> bool: ...).call())` came back as
-  something Godot rejects with "Unindent doesn't match the previous
-  indentation level". Until a lambda ends, a dedent has to land on one of the
-  enclosing statement's own indentation levels, and a continuation's is not one
-  of them. The closing parenthesis is what ends this lambda, so it now stays on
-  the body's last line — the same shape the comma gives an argument list.
-- `gdck-format`: a property whose accessors are both set to methods lost the
-  comma between them, so `var p:\n\tset = __set,\n\tget = __get` came back
-  without one and Godot rejected it with "Expected end of indented block for
-  property". Godot has two property forms and decides which it is reading from
-  the first accessor: the comma is what carries it on to the second, and only
-  that form has one. Accessors written as blocks are still separated by nothing
-  but a newline, since a comma there is a syntax error rather than a redundancy.
+- `gdck`: `gdck format -` wrote the literal string `-` to standard output instead of the formatted file, so `gdck format - < in.gd > out.gd` destroyed the file. Reading from `-` is now a filter with or without `--fix`, which is what the README always said it was: there is no file to write back to, so the formatted text is the output.
+- `gdck`: `gdck parse` wrote its summary to standard output while every other subcommand wrote it to standard error, so `gdck parse --tree` mixed a sentence of prose into the tree.
+- `gdck`: `--diff` printed the whole span between the first and last change as removed and re-added, so two one-line changes at opposite ends of a file printed the file twice. Diffs now come from `similar` and have hunks.
+- `gdck-syntax`: a single-line lambda inside a bracketed construct written across several lines (`connect(\n\tfunc(): return 1\n)`) took the closing bracket's line as the start of its body, swallowing the bracket.
+- `gdck-format`: a function's annotations were pulled up onto its declaration line. The Godot documentation writes `@rpc("any_peer")` above the `func` and `@export_range(0, 10) var lives` beside the `var`, so the two are now distinguished. `@abstract` stays inline either way, as a modifier.
+- `gdck-format`: an argument list ending in a multi-line lambda produced a file Godot rejects with "Unindent doesn't match the previous indentation level". A lambda body is the one place inside brackets where Godot still tracks indentation, and the first line after it has to sit at the enclosing statement's indent — which the closing brackets of a wrapped call do not. A trailing comma ends the lambda on the body's own last line, so no line is left to check; collections already emitted one and argument lists now do too.
+- `gdck-format`: a standalone annotation was moved up beside the declaration under it, producing a line Godot rejects with "Expected newline after a standalone annotation". `@warning_ignore_start`, `@warning_ignore_restore`, `@export_category`, `@export_group` and `@export_subgroup` open or close a region rather than describing what follows them, so there is nothing for them to sit beside and they now keep their own line. The annotations that do describe the declaration below, like `@export_range`, still move up onto it.
+- `gdck-format`: parentheses around a multi-line lambda were closed on a line of their own, so `assert((func() -> bool: ...).call())` came back as something Godot rejects with "Unindent doesn't match the previous indentation level". Until a lambda ends, a dedent has to land on one of the enclosing statement's own indentation levels, and a continuation's is not one of them. The closing parenthesis is what ends this lambda, so it now stays on the body's last line — the same shape the comma gives an argument list.
+- `gdck-format`: a property whose accessors are both set to methods lost the comma between them, so `var p:\n\tset = __set,\n\tget = __get` came back without one and Godot rejected it with "Expected end of indented block for property". Godot has two property forms and decides which it is reading from the first accessor: the comma is what carries it on to the second, and only that form has one. Accessors written as blocks are still separated by nothing but a newline, since a comma there is a syntax error rather than a redundancy.
 
 ### Changed
 
-- `gdck format` writes summaries to standard error, so standard output carries
-  only content: the formatted file when reading from `-`, the diff under
-  `--diff`, and otherwise the list of paths that would change.
-- The crate holding the binary is now `gdck` rather than `gdck-cli`, so
-  installing it is `cargo install gdck`. The binary was always called `gdck`
-  and is unchanged. The name had to be settled before the first publish, since
-  a crate name cannot be moved afterwards.
-- Publishing is opt-in per crate, and every crate here opts in. `gdck-syntax`
-  is a library in its own right — no dependencies, and a tree that reproduces
-  its input byte for byte. `gdck-config`, `gdck-format` and `gdck-lint` are
-  published only because the binary depends on them; their APIs move with
-  `gdck` and carry no stability promise.
+- `gdck format` writes summaries to standard error, so standard output carries only content: the formatted file when reading from `-`, the diff under `--diff`, and otherwise the list of paths that would change.
+- The crate holding the binary is now `gdck` rather than `gdck-cli`, so installing it is `cargo install gdck`. The binary was always called `gdck` and is unchanged. The name had to be settled before the first publish, since a crate name cannot be moved afterwards.
+- Publishing is opt-in per crate, and every crate here opts in. `gdck-syntax` is a library in its own right — no dependencies, and a tree that reproduces its input byte for byte. `gdck-config`, `gdck-format` and `gdck-lint` are published only because the binary depends on them; their APIs move with `gdck` and carry no stability promise.
 
 ### Internal
 
-- End-to-end tests that run the binary, covering what only a real process can
-  answer: that nothing reaches the disk without `--fix`, which stream each kind
-  of output goes to, and which exit code comes back. Both of the `gdck`
-  fixes above were found by writing them.
-- `prek` hooks in `prek.toml`, running the file-hygiene checks plus `cargo fmt`
-  and `cargo clippy` on commit, and the tests, doctests and MSRV check on push.
-  The hygiene hooks are prek's builtins, so there is no repository to clone and
-  no Python to install. See [CONTRIBUTING.md](CONTRIBUTING.md).
-- `cargo deny` in `deny.toml`, checked in CI: security advisories, licences,
-  duplicate versions and crate provenance. The licence allow list is exactly
-  what the tree needs — `MIT`, `Apache-2.0` and `Unicode-3.0` — so anything
-  arriving with a fourth is a decision to be made rather than a default to be
-  inherited.
-- Conformance against the real Godot parser, in `crates/gdck-format/tests/`.
-  The existing safety checks re-parse formatted output with `gdck-syntax`,
-  which is lossless and lenient by design and so accepts things Godot does
-  not; this asks Godot itself. The comparison is differential — Godot reports
-  undefined identifiers as parse errors too, so only files it accepted before
-  formatting are examined, and only failures formatting introduced are
-  reported. Set `GDCK_GODOT` to a Godot binary to run it.
+- End-to-end tests that run the binary, covering what only a real process can answer: that nothing reaches the disk without `--fix`, which stream each kind of output goes to, and which exit code comes back. Both of the `gdck` fixes above were found by writing them.
+- `prek` hooks in `prek.toml`, running the file-hygiene checks plus `cargo fmt` and `cargo clippy` on commit, and the tests, doctests and MSRV check on push. The hygiene hooks are prek's builtins, so there is no repository to clone and no Python to install. See [CONTRIBUTING.md](CONTRIBUTING.md).
+- `cargo deny` in `deny.toml`, checked in CI: security advisories, licences, duplicate versions and crate provenance. The licence allow list is exactly what the tree needs — `MIT`, `Apache-2.0` and `Unicode-3.0` — so anything arriving with a fourth is a decision to be made rather than a default to be inherited.
+- Conformance against the real Godot parser, in `crates/gdck-format/tests/`. The existing safety checks re-parse formatted output with `gdck-syntax`, which is lossless and lenient by design and so accepts things Godot does not; this asks Godot itself. The comparison is differential — Godot reports undefined identifiers as parse errors too, so only files it accepted before formatting are examined, and only failures formatting introduced are reported. Set `GDCK_GODOT` to a Godot binary to run it.
 
 ## [0.1.0] - 2026-08-11
 
@@ -592,23 +208,14 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 
 - `gdck-syntax`: a lossless lexer and parser for GDScript 4.
   - Zero-width `Indent` / `Dedent` tokens for indentation-delimited blocks.
-  - Multi-line lambda bodies inside brackets, where indentation becomes
-    significant again.
-  - All literal forms: `$Node/Path`, `%Unique`, `&"StringName"`, `^"NodePath"`,
-    raw and triple-quoted strings, every number base.
-  - Full declaration and expression grammar, including annotations, property
-    accessors, `match` patterns with bindings and rest markers, variadic
-    parameters and `@abstract` members.
-  - Error recovery: parsing never fails, and the tree always reproduces its
-    input byte for byte.
-  - Round-trips all 353 `.gd` files in `godot-gdscript-toolkit`'s test suites,
-    and parses all 324 valid ones without error.
-- `gdck-config`: configuration types and defaults taken from the GDScript style
-  guide, plus config-file discovery.
-- `gdck-cli`: the `gdck` binary, with a working `parse` subcommand and the full
-  `check` / `fix` / `format` / `lint` interface defined.
-- `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and
-  the planned rule catalogue.
+  - Multi-line lambda bodies inside brackets, where indentation becomes significant again.
+  - All literal forms: `$Node/Path`, `%Unique`, `&"StringName"`, `^"NodePath"`, raw and triple-quoted strings, every number base.
+  - Full declaration and expression grammar, including annotations, property accessors, `match` patterns with bindings and rest markers, variadic parameters and `@abstract` members.
+  - Error recovery: parsing never fails, and the tree always reproduces its input byte for byte.
+  - Round-trips all 353 `.gd` files in `godot-gdscript-toolkit`'s test suites, and parses all 324 valid ones without error.
+- `gdck-config`: configuration types and defaults taken from the GDScript style guide, plus config-file discovery.
+- `gdck-cli`: the `gdck` binary, with a working `parse` subcommand and the full `check` / `fix` / `format` / `lint` interface defined.
+- `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and the planned rule catalogue.
 
 [Unreleased]: https://github.com/eth0net/gdck/compare/v0.8.0...HEAD
 [0.8.0]: https://github.com/eth0net/gdck/compare/v0.7.0...v0.8.0
@@ -621,15 +228,6 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 [0.3.0]: https://github.com/eth0net/gdck/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eth0net/gdck/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eth0net/gdck/releases/tag/v0.1.0
-
-[#1]: https://github.com/eth0net/gdck/issues/1
-[#2]: https://github.com/eth0net/gdck/issues/2
-[#3]: https://github.com/eth0net/gdck/issues/3
-[#4]: https://github.com/eth0net/gdck/issues/4
-[#5]: https://github.com/eth0net/gdck/issues/5
-[#6]: https://github.com/eth0net/gdck/issues/6
-[#8]: https://github.com/eth0net/gdck/issues/8
-[#9]: https://github.com/eth0net/gdck/issues/9
 
 [prek]: https://prek.j178.dev
 [pre-commit]: https://pre-commit.com

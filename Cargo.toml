@@ -107,11 +107,6 @@ installers = ["shell", "powershell", "homebrew"]
 # another one.
 tap = "eth0net/homebrew-tap"
 publish-jobs = ["homebrew"]
-# Rewrites the release body dist generates from the changelog. A release is
-# rendered with GitHub Flavored Markdown, where a single newline is a line
-# break, so wrapped paragraphs arrive ragged; and the section is lifted away
-# from the link definitions at the foot of the file. See the workflow.
-post-announce-jobs = ["./release-notes"]
 # Linux is built against musl and statically linked, which this dependency tree
 # allows — no build scripts, nothing linking to C — so one binary runs on any
 # distribution with no minimum glibc.

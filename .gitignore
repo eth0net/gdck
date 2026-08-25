@@ -6,3 +6,6 @@
 
 # Local issue notes, kept out of the repo by intent: the file says so itself.
 ISSUES.md
+
+# Python bytecode from the scripts in tools/.
+__pycache__/
