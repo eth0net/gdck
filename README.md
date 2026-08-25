@@ -9,11 +9,11 @@ guide][styleguide].
 
 > [!NOTE]
 > **Complete but young.** The parser, formatter and linter are done and tested,
-> every subcommand works, and configuration is read. It has been run against two
-> real projects — around 730 files between them — as well as `gdtoolkit`'s
-> corpus, and against real Godot builds. It is still new enough to be worth
-> running alongside your existing setup before you trust it with `--fix`. See
-> [Status](#status).
+> every subcommand works, there are git hooks and a language server, and one
+> Godot project uses it daily on every commit and in CI. It has also been run
+> against `gdtoolkit`'s corpus and against real Godot builds. It is still new
+> enough to be worth running alongside your existing setup before you trust it
+> with `--fix`. See [Status](#status).
 
 `gdck` is a ground-up reimplementation of [`godot-gdscript-toolkit`][gdtoolkit]
 in Rust. It is designed to install alongside the original rather than replace it
@@ -25,26 +25,41 @@ in place, so you can try it on a project without giving up a working setup.
 ## Why
 
 **Speed.** Formatters and linters run on every save and every commit, so both
-startup cost and throughput are things you actually feel. Over a 321-file,
-7,700-line corpus:
+startup cost and throughput are things you actually feel. Over `gdtoolkit`'s
+own corpus — 327 files and 7,846 lines, counting only the files both tools
+accept:
 
-| | `gdck` | `gdtoolkit` |
-|---|---|---|
-| parse | 4 ms | 70 ms |
-| format, safety checks on | 56 ms | 802 ms |
-| format, safety checks off | 24 ms | 716 ms |
+| | `gdck` | `gdtoolkit` | |
+|---|---|---|---|
+| parse | 10 ms | 433 ms | 44× |
+| format | 32 ms | 683 ms | 22× |
+| format, safety checks off | 20 ms | — | |
+| lint | 20 ms | 657 ms | 33× |
 
-For parsing, most of the gap is Python interpreter startup rather than
-throughput — which still counts, since it is paid on every invocation. For
-formatting it is mostly real work: both tools re-parse their own output to
-verify it by default. Measured on an M-series Mac, averaged over 10 runs
-(`gdck`) and 3 (`gdformat`); reproduce with the corpus described below.
+Whole processes, interpreter startup included, because that is what you wait
+for and it is paid on every invocation. Both tools re-parse their own output to
+verify it, which is most of what formatting costs; `--fast` turns that off in
+`gdck` and is the row to compare against a formatter that does not do it.
+
+Measured on an M-series Mac by [`tools/benchmark.py`](tools/benchmark.py),
+which is in the repository so this is a claim you can check rather than one you
+have to take on trust:
+
+```sh
+cargo build --release
+tools/benchmark.py ../godot-gdscript-toolkit
+```
 
 **Style-guide fidelity.** The style guide says more than `gdtoolkit` enforces —
 notably [code order][order], quote style, number formatting, comment spacing,
 and when to use `:=` against an explicit type. `gdck` covers the guide, and
 auto-fixes what can be fixed safely. The rule catalogue is in
 [docs/RULES.md](docs/RULES.md).
+
+**One binary, everywhere it is wanted.** The same `gdck` is a command-line
+tool, a [git hook](docs/HOOKS.md) for `prek` and `pre-commit`, and a
+[language server](docs/EDITORS.md) for your editor. No Python, no runtime, no
+toolchain — and it installs beside `gdtoolkit` rather than over it.
 
 **A reusable parser.** [`gdck-syntax`](crates/gdck-syntax) is a standalone
 lossless GDScript parser. Editors, doc generators and static analysers need one
