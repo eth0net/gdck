@@ -11,7 +11,7 @@
 
 repos:
   - repo: https://github.com/eth0net/gdck
-    rev: v0.7.0
+    rev: v0.8.0
     hooks:
       # Formats and applies every fixable lint rule in a single pass over each
       # file. This is the one to use unless you have a reason not to.

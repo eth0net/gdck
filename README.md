@@ -3,6 +3,7 @@
 [![crates.io](https://img.shields.io/crates/v/gdck.svg)](https://crates.io/crates/gdck)
 [![CI](https://github.com/eth0net/gdck/actions/workflows/ci.yml/badge.svg)](https://github.com/eth0net/gdck/actions/workflows/ci.yml)
 [![license](https://img.shields.io/crates/l/gdck.svg)](#license)
+[![prek](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/j178/prek/master/docs/assets/badge-v0.json)](https://github.com/j178/prek)
 
 A fast GDScript formatter, linter and language server, faithful to the
 [official GDScript style guide][styleguide]. One binary, no Python, no runtime.
@@ -109,7 +110,7 @@ pin, so there is no Rust toolchain and no Python to install.
 # prek.toml
 [[repos]]
 repo = "https://github.com/eth0net/gdck"
-rev = "v0.7.0"
+rev = "v0.8.0"
 hooks = [{ id = "gdck-fix" }]
 ```
 

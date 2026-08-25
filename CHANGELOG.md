@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-25
+
+An editor release: `gdck` speaks LSP, and reports in JSON for everything that
+does not.
+
 ### Added
 
 - `gdck lsp` runs `gdck` as a language server over stdio: problems as you type,
@@ -605,7 +610,8 @@ Initial commit. The parser works; the formatter and linter do not exist yet.
 - `gdck-format` and `gdck-lint`: crate skeletons carrying the design notes and
   the planned rule catalogue.
 
-[Unreleased]: https://github.com/eth0net/gdck/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/eth0net/gdck/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/eth0net/gdck/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/eth0net/gdck/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/eth0net/gdck/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/eth0net/gdck/compare/v0.5.1...v0.5.2
