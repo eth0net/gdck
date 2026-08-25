@@ -21,12 +21,15 @@ command line; everything longer than a paragraph lives here.
 - **[EDITORS.md](EDITORS.md)** — `gdck lsp`, with configurations for Neovim,
   Helix, Zed and VS Code, and why it is meant to run alongside Godot's own
   language server rather than instead of it.
+- **[STATUS.md](STATUS.md)** — what is done, what it has been tested against,
+  and the gaps it has not closed yet.
 
 ## For working on it
 
-- **[DESIGN.md](DESIGN.md)** — how the crates fit together, why the formatter
-  is a Wadler pretty printer, what the safety checks promise, and the places
-  `gdck` knowingly departs from the guide.
+- **[DESIGN.md](DESIGN.md)** — the behaviour that differs from what you would
+  expect, then how the crates fit together, why the formatter is a Wadler
+  pretty printer, what the safety checks promise, and the places `gdck`
+  knowingly departs from the guide.
 - **[CONTRIBUTING.md](../CONTRIBUTING.md)** — getting set up, what CI runs, and
   how to add a rule.
 - **[CHANGELOG.md](../CHANGELOG.md)** — what changed, and in most cases why.

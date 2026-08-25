@@ -1,8 +1,9 @@
 # Contributing
 
-Thanks for looking. This is an early-stage project, so the most useful
-contributions right now are the formatter and the linter — see
-[docs/DESIGN.md](docs/DESIGN.md) for what each is meant to become.
+Thanks for looking. The parser, formatter and linter are all working, so the
+most useful contributions now are rules the style guide asks for and `gdck`
+does not check yet, and any file that it gets wrong — see
+[docs/DESIGN.md](docs/DESIGN.md) for how the pieces fit together.
 
 ## Getting set up
 
@@ -119,8 +120,27 @@ Every file must round-trip through the tree byte for byte. Parse *errors* are
 not failures there — that corpus contains deliberately invalid scripts — but
 losslessness has to hold for all of them.
 
+The formatter and the linter have matching corpus tests, run the same way:
+
+```sh
+GDCK_CORPUS=../godot-gdscript-toolkit/tests \
+  cargo test -p gdck-format --test corpus -- --nocapture
+GDCK_CORPUS=../godot-gdscript-toolkit/tests \
+  cargo test -p gdck-lint --test corpus -- --nocapture
+```
+
+All three are skipped when the variable is unset.
+
 If you have a Godot project to hand, pointing `GDCK_CORPUS` at it is a good way
 to find grammar gaps. Please do report any file that fails to round-trip.
+
+The formatter's other fixtures are the style guide's own code samples,
+regenerated from a checkout of the Godot documentation:
+
+```sh
+cargo build -p gdck
+tools/extract-style-guide-samples.py ../godot-docs
+```
 
 ## Working on the parser
 

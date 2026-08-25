@@ -4,6 +4,110 @@ How `gdck` is put together, and why. This documents decisions that are not
 obvious from the code, so that revisiting them later is a choice rather than an
 accident.
 
+## Decisions you will notice
+
+The rest of this document is about how `gdck` is built. This section is about
+how it behaves, and is here because each of these differs from what you would
+reasonably expect coming from another tool.
+
+### Reading is the default, writing is opt-in
+
+Formatters conventionally write by default and linters conventionally report by
+default. One tool doing both jobs cannot follow both conventions without
+becoming a per-command fact you have to memorise, so `gdck` follows neither:
+`--fix` writes, nothing else does. The cost is that `gdck format a.gd` does not
+reformat `a.gd` — it tells you it would, and `gdck fix .` is the short way to
+mean it.
+
+### Code order is fixed for a whole file or not at all
+
+Class-level initialisers run in declaration order, so reordering is not purely
+cosmetic:
+
+```gdscript
+var _config := preload("res://config.tres")
+var speed := _config.default_speed
+```
+
+The style guide puts public variables before private ones, so a naive reorder
+hoists `speed` above `_config` and it silently initialises from `null`.
+
+`gdck` treats each file as all-or-nothing: either every required move is
+provably safe and the file is reordered, or the file is left exactly as it was
+and the problem is reported. A partially reordered file would satisfy neither
+the original layout nor the style guide, and would still be flagged by the next
+`gdck check`.
+
+Safety is judged conservatively. Any initialiser that is not self-contained — it
+calls a function defined in the file, touches `self`, or is otherwise opaque —
+is treated as potentially reading every member above it. That occasionally
+blocks a file that would have been fine, but it cannot be wrong in the direction
+that breaks your game. Signals, enums, constants and functions carry no ordering
+semantics at all, so files needing only those moved always sort cleanly.
+
+What a reorder produces is a *permutation of the source* — the same bytes in a
+different order — rather than a re-rendering of it. A declaration therefore
+takes its comments and annotations with it exactly as written, and nothing can
+be lost on the way. Its blank lines travel with it too, which the formatter then
+settles; `gdck fix --fix-order` runs both.
+
+Reordering is opt-in (`--fix-order`) until the analysis has more mileage.
+
+### The linter agrees with `gdtoolkit` where it should
+
+Existing GDScript projects have already triaged `gdlint`'s findings, so a
+reimplementation that quietly widened a rule would present old code as newly
+broken. Over `gdtoolkit`'s own test corpus the two agree exactly on
+`unused-argument` (270 findings), `constant-name`, `trailing-whitespace`,
+`function-name`, `enum-member-name`, `argument-name`, `enum-name` and
+`max-arguments`.
+
+Where they differ, they differ on purpose, and
+[docs/RULES.md](RULES.md#differences-from-gdtoolkit) says why. The shortest
+version: `gdck` measures line length in columns rather than characters, so a
+tab-indented line counts the same to the linter as to the formatter; it reports
+a `pass` beside a `func` that `gdlint`'s statement test does not see; and it
+checks a good deal more of the guide's declaration order.
+
+`gdtoolkit`'s rule names are accepted as aliases everywhere a rule is named, so
+an existing `gdlintrc` and existing `# gdlint: ignore=` comments keep working.
+
+### Formatting you asked for is formatting you keep
+
+The style guide shows `var array = [1, 2, 3]` and the same array spread over
+four lines as *both* good, and marks an 83-column `if` as bad for not being
+wrapped. Neither follows from a column limit, so `gdck` treats the author's own
+line breaks as the deciding vote: a bracketed construct written across several
+lines stays that way and gains its trailing comma, and one written on a single
+line stays there if it fits. To collapse a construct, delete the newlines.
+
+### Nothing is written until the output has been checked
+
+Before returning, the formatter re-parses its own output and verifies that it
+parses, that the tree still means the same thing, that no comment was lost, and
+that a second pass changes nothing. If any of those fail, the file is left alone
+and the reason is reported. `--fast` turns them off.
+
+These are not decoration. Every one of them caught real bugs while the formatter
+was being written, including a lexer bug where a single-line lambda inside a
+wrapped argument list swallowed its own closing bracket. A formatter that
+silently eats code is far worse than one that refuses to run.
+
+The equivalence used is tree shape rather than token stream, since the guide
+asks for rewrites that move tokens: hoisting an inner class's `extends` onto the
+declaration line, and dropping redundant parentheses. Comparing shape is weaker
+in exactly those places and stronger where it matters — grouping is encoded by
+the nesting, so a parenthesis that actually mattered shows up as a differently
+shaped expression rather than as two missing tokens.
+
+### The tree keeps every byte
+
+Whitespace, comments and blank lines are all nodes in the syntax tree, and the
+source is always exactly recoverable from it. This is what lets the formatter
+rewrite one declaration while leaving the comments around it untouched, and it
+holds even for files with syntax errors — a formatter must never damage a file
+it merely failed to understand.
+
 ## Crate layout
 
 | Crate | Responsibility |
