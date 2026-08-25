@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   offers it and UTF-16 otherwise, both tested — including an emoji, which is
   four bytes, one `char` and two UTF-16 code units, and so catches a server
   counting characters rather than code units.
+- `tools/benchmark.py`, which produces the README's comparison table, so the
+  speed claim is one anyone can check.
 - `--output json` on `check`, `lint` and `parse`, reporting one object per line
   ([#9]). `gdck` printed for people and nothing else, which blocks every editor
   integration — `null-ls`, ALE, efm and VS Code problem matchers all want
@@ -45,6 +47,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   arrives as it is produced and survives being cut off with every completed
   record still valid. `jq -s .` collects it into an array. Summaries were
   already on standard error, so standard output carries nothing but records.
+
+### Documentation
+
+- The README's benchmark numbers were wrong in both directions and are now
+  measured. Parsing was given as 4ms against `gdtoolkit`'s 70ms; on the same
+  corpus it is 10ms against 433ms — the `gdck` figure optimistic, the
+  `gdtoolkit` one off by six times, which 70ms should have given away, being
+  less than a Python interpreter takes to start. Formatting was pessimistic
+  the other way, 56ms then and 32ms now, and there was no lint row at all.
+- `docs/README.md` indexes the documentation, which had grown to five files
+  reachable only through a directory listing.
 
 ## [0.7.0] - 2026-08-18
 
