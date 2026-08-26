@@ -1,7 +1,7 @@
 # gdck
 
 [![crates.io](https://img.shields.io/crates/v/gdck.svg)](https://crates.io/crates/gdck)
-[![CI](https://github.com/eth0net/gdck/actions/workflows/ci.yml/badge.svg)](https://github.com/eth0net/gdck/actions/workflows/ci.yml)
+[![CI](https://github.com/eth0net/gdck/actions/workflows/ci.yaml/badge.svg)](https://github.com/eth0net/gdck/actions/workflows/ci.yaml)
 [![license](https://img.shields.io/crates/l/gdck.svg)](#license)
 [![prek](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/j178/prek/master/docs/assets/badge-v0.json)](https://github.com/j178/prek)
 
