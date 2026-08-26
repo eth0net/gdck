@@ -173,8 +173,17 @@ for anything new.
 
 ## Commit and PR style
 
-Small, focused commits with a short imperative subject. Explain *why* in the
-body when it is not obvious; the code already says what.
+Conventional commits: `type: subject`, imperative, with a scope in brackets
+where one clarifies. `feat`, `fix`, `docs`, `refactor`, `test`, `chore`.
+
+The subject carries it. Add a body only when the *why* is not recoverable from
+the diff, and then one short paragraph rather than three.
+
+One logical change per commit, and a version bump is its own final commit.
+
+History before this point is plain imperative with no prefix. The convention
+changed here rather than by rewriting what was already published, so `git log`
+crosses the boundary partway down.
 
 ## Licensing
 
