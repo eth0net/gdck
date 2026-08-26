@@ -180,3 +180,7 @@ body when it is not obvious; the code already says what.
 
 Contributions are dual licensed under MIT and Apache-2.0, matching the project.
 By submitting a pull request you agree to that.
+
+## Attribution
+
+Developed with [Claude Code](https://claude.com/claude-code).
